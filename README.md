@@ -2,7 +2,7 @@
 
 An octo-inspired norns scene fader for live input.
 
-`fadddddddder` records incoming audio into a rolling `softcut` buffer, stores two scene states (`A` and `B`), and lets you morph between them with a single encoder.
+`fadddddddder` stores two scene states (`A` and `B`) and morphs between them with a single encoder while a dedicated SuperCollider engine handles the live audio path.
 
 ## Status
 
@@ -13,7 +13,7 @@ First pass. The core workflow is there:
 - set each scene amount
 - sweep the crossfader between them on the performance page
 
-This version is intentionally small and uses stock `softcut` features only.
+This version is intentionally small, but the live DSP now runs in a custom SuperCollider engine instead of `softcut` transport tricks.
 
 ## Effects In v0.1
 
@@ -40,7 +40,7 @@ This version is intentionally small and uses stock `softcut` features only.
 
 - `E2`: select field
 - `E3`: edit selected field
-- `K1`: reframe the loop playheads to the loop start
+- `K1`: jump the crossfader to that scene for quick auditioning
 
 ## Pages
 
@@ -50,17 +50,15 @@ This version is intentionally small and uses stock `softcut` features only.
 
 ## Audio Model
 
-This is a live-input `softcut` processor, not a zero-latency insert effect rack.
+This is a live-input SuperCollider processor with a scene crossfader.
 
-- dry monitor stays present for neutral `thru`
-- incoming audio is routed into `softcut`
-- two mono `softcut` voices handle left/right
-- filter scenes use a very short read/write lag
-- dub, microloop, and freeze use a more audible buffer lag by design
-- scenes generate parameter bundles
-- the crossfader interpolates those bundles in real time
+- incoming audio is processed by a custom engine in `lib/Engine_Fadddddddder.sc`
+- scene `A` and scene `B` each run their own effect macro and amount
+- the engine crossfades between those scene outputs in real time
+- all effect parameters are smoothed in SuperCollider to reduce zipper noise and clicks
+- `thru`, `lowpass`, `highpass`, `dub echo`, `microloop`, and `freeze` are all generated in the engine
 
-That means `thru` should feel close to direct monitoring, while the other scenes progressively bring in the live buffer processor.
+That means simple filter moves no longer depend on `softcut` head jumps, which was the main source of the clicking and accidental short-loop behavior.
 
 ## Install
 
@@ -76,12 +74,16 @@ Repo:
 https://github.com/alvinashiatey/fadddddddder.git
 ```
 
+After installing or updating, restart norns so it recompiles the custom engine.
+
 ## File Layout
 
 ```text
 fadddddddder/
   fadddddddder.lua
   README.md
+  lib/
+    Engine_Fadddddddder.sc
 ```
 
 ## Likely Next Steps
@@ -90,4 +92,5 @@ fadddddddder/
 - add per-effect sub-parameters
 - add scene copy/capture actions
 - add waveform or input/output metering
-- test and tune loop timing on actual norns hardware
+- tune the SC macros on actual norns hardware
+- add params for input mode and gain staging
