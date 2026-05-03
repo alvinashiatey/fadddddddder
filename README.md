@@ -84,6 +84,13 @@ fadddddddder/
   README.md
   lib/
     Engine_Fadddddddder.sc
+    fx/
+      Thru.sc
+      Lowpass.sc
+      Highpass.sc
+      Dub.sc
+      Microloop.sc
+      Freeze.sc
 ```
 
 ## Likely Next Steps

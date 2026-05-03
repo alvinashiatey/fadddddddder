@@ -15,116 +15,44 @@ Engine_Fadddddddder : CroneEngine {
   }
 
   alloc {
-    // Allocate buses first — no server.sync needed here, Bus.audio is
-    // a client-side operation and returns immediately.
-    inputBus  = Bus.audio(context.server, 2);
+    inputBus = Bus.audio(context.server, 2);
     sceneABus = Bus.audio(context.server, 2);
     sceneBBus = Bus.audio(context.server, 2);
 
     SynthDef(\fadddddddderInput, { |inL = 0, inR = 1, out = 0, amp = 1|
-      var sig = [In.ar(inL), In.ar(inR)] * Lag.kr(amp, 0.05);
+      var sig;
+      sig = [In.ar(inL), In.ar(inR)] * Lag.kr(amp, 0.05);
       Out.ar(out, LeakDC.ar(sig));
     }).add;
 
-    SynthDef(\fadddddddderScene, {
-      |inBus = 0, out = 0, effect = 0, amount = 0|
-      var dry, fb, a, eff,
-          lpCutoff, hpCutoff, filterRq,
-          dubTime, dubFeedback, dubColor,
-          microTime, microFeedback, microRate, microDepth, microTimeB, microColor,
-          freezeTime, freezeInput, freezeFeedback, freezeColor,
-          lpWet, hpWet,
-          dubCore, dubWet,
-          microSource, microTapA, microTapB, microWet,
-          freezeLoop, freezeWet,
-          thruOut, lpOut, hpOut, dubOut, microOut, freezeOut,
-          selectedL, selectedR, fbL, fbR;
-
-      // Read stereo pair from a single bus index — cleaner and avoids
-      // off-by-one errors when passing bus indices from Lua.
+    SynthDef(\fadddddddderScene, { |inBus = 0, out = 0, effect = 0, amount = 0|
+      var dry, a, eff, thru, lowpass, highpass, dub, micro, freeze, left, right, sig;
       dry = In.ar(inBus, 2);
-      fb  = LocalIn.ar(2);
-      a   = Lag.kr(amount.clip(0, 1), 0.08);
-      eff = Lag.kr(effect.clip(0, 5), 0.06);
+      a = Lag.kr(amount.clip(0, 1), 0.08);
+      eff = Lag.kr(effect.clip(0, 5), 0.05);
 
-      lpCutoff = LinExp.kr(a, 0, 1, 12000, 220);
-      hpCutoff = LinExp.kr(a, 0, 1, 40, 5500);
-      filterRq = LinLin.kr(a, 0, 1, 0.18, 0.85);
+      thru = FaddThru.ar(dry, a);
+      lowpass = FaddLowpass.ar(dry, a);
+      highpass = FaddHighpass.ar(dry, a);
+      dub = FaddDub.ar(dry, a);
+      micro = FaddMicroloop.ar(dry, a);
+      freeze = FaddFreeze.ar(dry, a);
 
-      dubTime     = LinLin.kr(a, 0, 1, 0.16, 0.9);
-      dubFeedback = LinLin.kr(a, 0, 1, 0.2, 0.92);
-      dubColor    = LinExp.kr(a, 0, 1, 10000, 1200);
-
-      microTime     = LinExp.kr(a, 0, 1, 0.16, 0.025);
-      microFeedback = LinLin.kr(a, 0, 1, 0.2, 0.9);
-      microRate     = LinLin.kr(a, 0, 1, 0.25, 8);
-      microDepth    = microTime * LinLin.kr(a, 0, 1, 0.08, 0.4);
-      microTimeB    = Clip.kr((microTime * 0.63) + 0.004, 0.004, 0.25);
-      microColor    = LinExp.kr(a, 0, 1, 11000, 1800);
-
-      freezeTime     = LinExp.kr(a, 0, 1, 0.35, 0.08);
-      freezeInput    = LinLin.kr(a, 0, 1, 1.0, 0.0);
-      freezeFeedback = LinLin.kr(a, 0, 1, 0.55, 0.995);
-      freezeColor    = LinExp.kr(a, 0, 1, 11000, 900);
-
-      lpWet = RLPF.ar(dry, lpCutoff, filterRq);
-      hpWet = RHPF.ar(dry, hpCutoff, filterRq);
-
-      dubCore = DelayC.ar(dry + (fb * dubFeedback), 1.5, dubTime);
-      dubWet  = LPF.ar(HPF.ar(dubCore, 60), dubColor).tanh;
-
-      microSource = HPF.ar(dry + (fb * microFeedback), 100);
-      microTapA   = DelayC.ar(
-        microSource,
-        0.25,
-        Clip.kr(microTime + SinOsc.kr(microRate, 0, microDepth), 0.005, 0.24)
-      );
-      microTapB = DelayC.ar(microSource, 0.25, microTimeB);
-      microWet  = LPF.ar(((microTapA + microTapB) * 0.5) * 1.2, microColor).softclip;
-
-      freezeLoop = DelayC.ar((dry * freezeInput) + (fb * freezeFeedback), 0.5, freezeTime);
-      freezeWet  = LPF.ar(HPF.ar(freezeLoop, 50), freezeColor).softclip;
-
-      thruOut  = dry;
-      lpOut    = XFade2.ar(dry, lpWet, (a * 2) - 1);
-      hpOut    = XFade2.ar(dry, hpWet, (a * 2) - 1);
-      dubOut   = (dry * LinLin.kr(a, 0, 1, 1.0, 0.45)) + (dubWet   * LinLin.kr(a, 0, 1, 0.15, 1.0));
-      microOut = (dry * LinLin.kr(a, 0, 1, 1.0, 0.18)) + (microWet * LinLin.kr(a, 0, 1, 0.2,  1.0));
-      freezeOut= (dry * LinLin.kr(a, 0, 1, 1.0, 0.1))  + (freezeWet* LinLin.kr(a, 0, 1, 0.15, 1.0));
-
-      selectedL = SelectX.ar(eff, [
-        thruOut[0], lpOut[0], hpOut[0], dubOut[0], microOut[0], freezeOut[0]
-      ]);
-      selectedR = SelectX.ar(eff, [
-        thruOut[1], lpOut[1], hpOut[1], dubOut[1], microOut[1], freezeOut[1]
-      ]);
-
-      fbL = SelectX.ar(eff, [0, 0, 0,
-        dubWet[0]    * dubFeedback,
-        microWet[0]  * microFeedback,
-        freezeWet[0] * freezeFeedback
-      ]);
-      fbR = SelectX.ar(eff, [0, 0, 0,
-        dubWet[1]    * dubFeedback,
-        microWet[1]  * microFeedback,
-        freezeWet[1] * freezeFeedback
-      ]);
-
-      LocalOut.ar(LeakDC.ar(Limiter.ar([fbL, fbR], 0.95)));
-      Out.ar(out, LeakDC.ar(Limiter.ar([selectedL, selectedR], 0.98)));
+      left = SelectX.ar(eff, [thru[0], lowpass[0], highpass[0], dub[0], micro[0], freeze[0]]);
+      right = SelectX.ar(eff, [thru[1], lowpass[1], highpass[1], dub[1], micro[1], freeze[1]]);
+      sig = LeakDC.ar(Limiter.ar([left, right], 0.98));
+      Out.ar(out, sig);
     }).add;
 
-    SynthDef(\fadddddddderMix, {
-      |inABus = 0, inBBus = 2, out = 0, xfade = 0.5, amp = 1|
-      var sceneA = In.ar(inABus, 2);
-      var sceneB = In.ar(inBBus, 2);
-      var pos    = Lag.kr(xfade.clip(0, 1), 0.05);
-      var sig    = XFade2.ar(sceneA, sceneB, (pos * 2) - 1) * Lag.kr(amp, 0.05);
+    SynthDef(\fadddddddderMix, { |inABus = 0, inBBus = 2, out = 0, xfade = 0.5, amp = 1|
+      var sceneA, sceneB, pos, sig;
+      sceneA = In.ar(inABus, 2);
+      sceneB = In.ar(inBBus, 2);
+      pos = Lag.kr(xfade.clip(0, 1), 0.05);
+      sig = XFade2.ar(sceneA, sceneB, (pos * 2) - 1) * Lag.kr(amp, 0.05);
       Out.ar(out, LeakDC.ar(Limiter.ar(sig, 0.98)));
     }).add;
 
-    // Wait for all SynthDefs to be sent and acknowledged before
-    // instantiating synths. This is the correct sync point in CroneEngine.
     context.server.sync;
 
     inputStage = Synth.new(\fadddddddderInput, [
@@ -135,15 +63,15 @@ Engine_Fadddddddder : CroneEngine {
     ], context.xg);
 
     sceneAStage = Synth.new(\fadddddddderScene, [
-      \inBus,  inputBus.index,
-      \out,    sceneABus.index,
+      \inBus, inputBus.index,
+      \out, sceneABus.index,
       \effect, 0,
       \amount, 0
     ], inputStage, \addAfter);
 
     sceneBStage = Synth.new(\fadddddddderScene, [
-      \inBus,  inputBus.index,
-      \out,    sceneBBus.index,
+      \inBus, inputBus.index,
+      \out, sceneBBus.index,
       \effect, 3,
       \amount, 0.55
     ], sceneAStage, \addAfter);
@@ -151,19 +79,19 @@ Engine_Fadddddddder : CroneEngine {
     mixStage = Synth.new(\fadddddddderMix, [
       \inABus, sceneABus.index,
       \inBBus, sceneBBus.index,
-      \out,    context.out_b.index,
-      \xfade,  0.5,
-      \amp,    outputAmp
+      \out, context.out_b.index,
+      \xfade, 0,
+      \amp, outputAmp
     ], sceneBStage, \addAfter);
 
-    this.addCommand("set_scene_a_effect", "f", { |msg| sceneAStage.set(\effect, msg[1]) });
-    this.addCommand("set_scene_a_amount", "f", { |msg| sceneAStage.set(\amount, msg[1]) });
-    this.addCommand("set_scene_b_effect", "f", { |msg| sceneBStage.set(\effect, msg[1]) });
-    this.addCommand("set_scene_b_amount", "f", { |msg| sceneBStage.set(\amount, msg[1]) });
-    this.addCommand("set_xfade",          "f", { |msg| mixStage.set(\xfade, msg[1]) });
-    this.addCommand("set_input_amp",      "f", { |msg| this.setInputAmp(msg[1]) });
-    this.addCommand("set_output_amp",     "f", { |msg| this.setOutputAmp(msg[1]) });
-    this.addCommand("set_num_input_channels", "i", { |msg| this.setNumInputChannels(msg[1]) });
+    this.addCommand("set_scene_a_effect", "f", { |msg| sceneAStage.set(\effect, msg[1]); });
+    this.addCommand("set_scene_a_amount", "f", { |msg| sceneAStage.set(\amount, msg[1]); });
+    this.addCommand("set_scene_b_effect", "f", { |msg| sceneBStage.set(\effect, msg[1]); });
+    this.addCommand("set_scene_b_amount", "f", { |msg| sceneBStage.set(\amount, msg[1]); });
+    this.addCommand("set_xfade", "f", { |msg| mixStage.set(\xfade, msg[1]); });
+    this.addCommand("set_input_amp", "f", { |msg| this.setInputAmp(msg[1]); });
+    this.addCommand("set_output_amp", "f", { |msg| this.setOutputAmp(msg[1]); });
+    this.addCommand("set_num_input_channels", "i", { |msg| this.setNumInputChannels(msg[1]); });
   }
 
   getInL {
