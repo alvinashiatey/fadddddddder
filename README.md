@@ -29,14 +29,12 @@ This version is intentionally small and uses stock `softcut` features only.
 ### Global
 
 - `E1`: change page
-- `K2` / `K3`: previous / next page on scene pages
+- `K2` / `K3`: previous / next page
 
 ### Perform page
 
 - `E3`: crossfade from `A` to `B`
-- `K2`: snap to `A`
 - `K1`: snap to center
-- `K3`: snap to `B`
 
 ### Scene pages
 
@@ -54,12 +52,14 @@ This version is intentionally small and uses stock `softcut` features only.
 
 This is a live-input `softcut` processor, not a zero-latency insert effect rack.
 
+- dry monitor stays present for neutral `thru`
 - incoming audio is routed into `softcut`
 - two mono `softcut` voices handle left/right
+- the processed path runs with a short read/write lag
 - scenes generate parameter bundles
 - the crossfader interpolates those bundles in real time
 
-That means the script behaves more like a scene-morphing live buffer processor than a simple dry/wet pedal.
+That means `thru` should feel close to direct monitoring, while the other scenes progressively bring in the live buffer processor.
 
 ## Install
 

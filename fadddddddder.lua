@@ -1,5 +1,5 @@
 -- fadddddddder: octo-inspired scene crossfader for live input
--- v0.2.0 @alvinashiatey
+-- v0.2.1 @alvinashiatey
 
 local pages            = { "perform", "scene_a", "scene_b" }
 local page_labels      = { perform = "perform", scene_a = "scene A", scene_b = "scene B" }
@@ -19,17 +19,18 @@ local effect_index_map = {}
 for i, name in ipairs(effect_order) do effect_index_map[name] = i end
 
 local BUFFER_START = 1.0
+local PLAY_LAG = 0.35
 local redraw_metro = nil
 
 local state        = {
     page_index   = 1,
     cursor       = 1,
     xfade        = 0.0,
-    dry          = 0.9,
+    dry          = 1.0,
     wet          = 1.0,
     input_to_cut = 1.0,
     slew         = 0.12,
-    base_loop    = 1.0,
+    base_loop    = 8.0,
     scenes       = {
         A = { effect = "thru", amount = 0.0 },
         B = { effect = "dub", amount = 0.55 },
@@ -51,7 +52,7 @@ local function build_bundle(scene)
     local wet = state.wet
 
     local b   = {
-        wet      = wet,
+        wet      = 0.0,
         dry      = 1.0,
         rec      = 1.0,
         pre      = 1.0,
@@ -67,47 +68,51 @@ local function build_bundle(scene)
 
     local eff = scene.effect
     if eff == "thru" then
-        b.wet = wet * (0.45 + a * 0.2)
+        b.wet = wet * linlin(0, 1, 0.0, 0.18, a)
     elseif eff == "lp" then
         b.cutoff  = linexp(0, 1, 12000, 250, a)
         b.rq      = linlin(0, 1, 2.4, 0.8, a)
         b.lp_mix  = 1.0
-        b.dry_mix = linlin(0, 1, 1.0, 0.15, a)
-        b.wet     = wet * 0.95
+        b.dry_mix = linlin(0, 1, 1.0, 0.0, a)
+        b.wet     = wet * linlin(0, 1, 0.0, 1.0, a)
+        b.dry     = linlin(0, 1, 1.0, 0.2, a)
     elseif eff == "hp" then
         b.cutoff  = linexp(0, 1, 40, 5000, a)
         b.rq      = linlin(0, 1, 2.4, 1.0, a)
         b.hp_mix  = 1.0
-        b.dry_mix = linlin(0, 1, 1.0, 0.1, a)
-        b.wet     = wet * 0.95
+        b.dry_mix = linlin(0, 1, 1.0, 0.0, a)
+        b.wet     = wet * linlin(0, 1, 0.0, 1.0, a)
+        b.dry     = linlin(0, 1, 1.0, 0.2, a)
     elseif eff == "dub" then
-        b.rec      = linlin(0, 1, 0.75, 0.15, a)
-        b.pre      = linlin(0, 1, 1.0, 0.82, a)
-        b.loop_len = linlin(0, 1, ll, math.max(0.2, ll * 3.0), a)
-        b.fade     = linlin(0, 1, 0.03, 0.08, a)
+        b.rec      = linlin(0, 1, 0.65, 0.18, a)
+        b.pre      = linlin(0, 1, 1.0, 0.88, a)
+        b.loop_len = linlin(0, 1, ll, math.max(2.0, ll), a)
+        b.fade     = linlin(0, 1, 0.03, 0.06, a)
         b.cutoff   = linexp(0, 1, 9000, 900, a)
         b.lp_mix   = linlin(0, 1, 0.0, 0.8, a)
-        b.wet      = wet * linlin(0, 1, 0.7, 1.1, a)
-        b.dry      = linlin(0, 1, 1.0, 0.75, a)
+        b.dry_mix  = 1.0
+        b.wet      = wet * linlin(0, 1, 0.2, 1.0, a)
+        b.dry      = linlin(0, 1, 1.0, 0.55, a)
     elseif eff == "micro" then
-        b.rec      = linlin(0, 1, 0.65, 0.0, a)
-        b.rate     = linlin(0, 1, 1.0, 0.5, a)
-        b.loop_len = linexp(0, 1, ll, 0.08, a)
-        b.fade     = linlin(0, 1, 0.025, 0.008, a)
+        b.rec      = linlin(0, 1, 0.35, 0.0, a)
+        b.rate     = linlin(0, 1, 1.0, 0.65, a)
+        b.loop_len = linexp(0, 1, ll, 0.12, a)
+        b.fade     = linlin(0, 1, 0.025, 0.01, a)
         b.cutoff   = linexp(0, 1, 10000, 1400, a)
         b.lp_mix   = linlin(0, 1, 0.0, 0.6, a)
         b.dry_mix  = linlin(0, 1, 1.0, 0.0, a)
-        b.wet      = wet * 1.1
-        b.dry      = linlin(0, 1, 0.95, 0.35, a)
+        b.wet      = wet * linlin(0, 1, 0.25, 1.0, a)
+        b.dry      = linlin(0, 1, 1.0, 0.25, a)
     elseif eff == "freeze" then
         b.rec      = 0.0
         b.rate     = linlin(0, 1, 1.0, 0.82, a)
-        b.loop_len = linexp(0, 1, ll, 0.12, a)
+        b.loop_len = linexp(0, 1, ll, 0.2, a)
         b.fade     = linlin(0, 1, 0.03, 0.01, a)
         b.cutoff   = linexp(0, 1, 11000, 650, a)
         b.lp_mix   = linlin(0, 1, 0.0, 0.9, a)
         b.dry_mix  = linlin(0, 1, 1.0, 0.0, a)
-        b.dry      = linlin(0, 1, 0.9, 0.2, a)
+        b.wet      = wet * linlin(0, 1, 0.35, 1.0, a)
+        b.dry      = linlin(0, 1, 1.0, 0.15, a)
     end
 
     b.wet      = clamp(b.wet, 0, 1.2)
@@ -168,7 +173,7 @@ end
 -- ---------------------------------------------------------------------------
 
 local function reframe_positions()
-    for voice = 1, 2 do softcut.position(voice, BUFFER_START) end
+    for voice = 1, 2 do softcut.position(voice, BUFFER_START + PLAY_LAG) end
 end
 
 local function setup_softcut()
@@ -191,12 +196,13 @@ local function setup_softcut()
         softcut.loop(voice, 1)
         softcut.loop_start(voice, BUFFER_START)
         softcut.loop_end(voice, BUFFER_START + state.base_loop)
-        softcut.position(voice, BUFFER_START)
+        softcut.position(voice, BUFFER_START + PLAY_LAG)
         softcut.rate(voice, 1.0)
         softcut.level(voice, 1.0)
         softcut.fade_time(voice, 0.03)
         softcut.rec_level(voice, 1.0)
         softcut.pre_level(voice, 1.0)
+        softcut.rec_offset(voice, PLAY_LAG)
         softcut.level_slew_time(voice, state.slew)
         softcut.rate_slew_time(voice, state.slew)
         softcut.recpre_slew_time(voice, state.slew)
