@@ -55,7 +55,8 @@ This is a live-input `softcut` processor, not a zero-latency insert effect rack.
 - dry monitor stays present for neutral `thru`
 - incoming audio is routed into `softcut`
 - two mono `softcut` voices handle left/right
-- the processed path runs with a short read/write lag
+- filter scenes use a very short read/write lag
+- dub, microloop, and freeze use a more audible buffer lag by design
 - scenes generate parameter bundles
 - the crossfader interpolates those bundles in real time
 

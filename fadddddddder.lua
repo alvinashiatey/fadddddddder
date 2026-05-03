@@ -19,8 +19,10 @@ local effect_index_map = {}
 for i, name in ipairs(effect_order) do effect_index_map[name] = i end
 
 local BUFFER_START = 1.0
-local PLAY_LAG = 0.35
+local DEFAULT_PLAY_LAG = 0.35
 local redraw_metro = nil
+local current_play_lag = DEFAULT_PLAY_LAG
+local reframe_positions
 
 local state        = {
     page_index   = 1,
@@ -57,6 +59,7 @@ local function build_bundle(scene)
         rec      = 1.0,
         pre      = 1.0,
         rate     = 1.0,
+        play_lag = DEFAULT_PLAY_LAG,
         loop_len = ll,
         fade     = 0.03,
         cutoff   = 12000,
@@ -69,6 +72,7 @@ local function build_bundle(scene)
     local eff = scene.effect
     if eff == "thru" then
         b.wet = wet * linlin(0, 1, 0.0, 0.18, a)
+        b.play_lag = linlin(0, 1, 0.01, 0.03, a)
     elseif eff == "lp" then
         b.cutoff  = linexp(0, 1, 12000, 250, a)
         b.rq      = linlin(0, 1, 2.4, 0.8, a)
@@ -76,6 +80,7 @@ local function build_bundle(scene)
         b.dry_mix = linlin(0, 1, 1.0, 0.0, a)
         b.wet     = wet * linlin(0, 1, 0.0, 1.0, a)
         b.dry     = linlin(0, 1, 1.0, 0.2, a)
+        b.play_lag = linlin(0, 1, 0.01, 0.025, a)
     elseif eff == "hp" then
         b.cutoff  = linexp(0, 1, 40, 5000, a)
         b.rq      = linlin(0, 1, 2.4, 1.0, a)
@@ -83,6 +88,7 @@ local function build_bundle(scene)
         b.dry_mix = linlin(0, 1, 1.0, 0.0, a)
         b.wet     = wet * linlin(0, 1, 0.0, 1.0, a)
         b.dry     = linlin(0, 1, 1.0, 0.2, a)
+        b.play_lag = linlin(0, 1, 0.01, 0.025, a)
     elseif eff == "dub" then
         b.rec      = linlin(0, 1, 0.65, 0.18, a)
         b.pre      = linlin(0, 1, 1.0, 0.88, a)
@@ -93,6 +99,7 @@ local function build_bundle(scene)
         b.dry_mix  = 1.0
         b.wet      = wet * linlin(0, 1, 0.2, 1.0, a)
         b.dry      = linlin(0, 1, 1.0, 0.55, a)
+        b.play_lag = linlin(0, 1, 0.08, 0.35, a)
     elseif eff == "micro" then
         b.rec      = linlin(0, 1, 0.35, 0.0, a)
         b.rate     = linlin(0, 1, 1.0, 0.65, a)
@@ -103,6 +110,7 @@ local function build_bundle(scene)
         b.dry_mix  = linlin(0, 1, 1.0, 0.0, a)
         b.wet      = wet * linlin(0, 1, 0.25, 1.0, a)
         b.dry      = linlin(0, 1, 1.0, 0.25, a)
+        b.play_lag = linlin(0, 1, 0.06, 0.2, a)
     elseif eff == "freeze" then
         b.rec      = 0.0
         b.rate     = linlin(0, 1, 1.0, 0.82, a)
@@ -113,12 +121,14 @@ local function build_bundle(scene)
         b.dry_mix  = linlin(0, 1, 1.0, 0.0, a)
         b.wet      = wet * linlin(0, 1, 0.35, 1.0, a)
         b.dry      = linlin(0, 1, 1.0, 0.15, a)
+        b.play_lag = linlin(0, 1, 0.08, 0.22, a)
     end
 
     b.wet      = clamp(b.wet, 0, 1.2)
     b.dry      = clamp(b.dry, 0, 1.0)
     b.rec      = clamp(b.rec, 0, 1.0)
     b.pre      = clamp(b.pre, 0, 1.0)
+    b.play_lag = clamp(b.play_lag, 0.005, 0.5)
     b.loop_len = clamp(b.loop_len, 0.08, 8.0)
     b.fade     = clamp(b.fade, 0.005, 0.2)
     b.cutoff   = clamp(b.cutoff, 20, 12000)
@@ -142,6 +152,7 @@ local function apply_bundle()
     local rate     = linlin(0, 1, L.rate, R.rate, x)
     local rec      = linlin(0, 1, L.rec, R.rec, x)
     local pre      = linlin(0, 1, L.pre, R.pre, x)
+    local play_lag = linlin(0, 1, L.play_lag, R.play_lag, x)
     local fade     = linlin(0, 1, L.fade, R.fade, x)
     local loop_len = linlin(0, 1, L.loop_len, R.loop_len, x)
     local cutoff   = linlin(0, 1, L.cutoff, R.cutoff, x)
@@ -155,6 +166,7 @@ local function apply_bundle()
         softcut.rate(voice, rate)
         softcut.rec_level(voice, rec)
         softcut.pre_level(voice, pre)
+        softcut.rec_offset(voice, play_lag)
         softcut.fade_time(voice, fade)
         softcut.loop_start(voice, BUFFER_START)
         softcut.loop_end(voice, BUFFER_START + loop_len)
@@ -166,14 +178,21 @@ local function apply_bundle()
         softcut.post_filter_bp(voice, 0.0)
         softcut.post_filter_br(voice, 0.0)
     end
+
+    if math.abs(play_lag - current_play_lag) > 0.02 then
+        current_play_lag = play_lag
+        reframe_positions()
+    else
+        current_play_lag = play_lag
+    end
 end
 
 -- ---------------------------------------------------------------------------
 -- Softcut setup
 -- ---------------------------------------------------------------------------
 
-local function reframe_positions()
-    for voice = 1, 2 do softcut.position(voice, BUFFER_START + PLAY_LAG) end
+reframe_positions = function()
+    for voice = 1, 2 do softcut.position(voice, BUFFER_START + current_play_lag) end
 end
 
 local function setup_softcut()
@@ -196,13 +215,13 @@ local function setup_softcut()
         softcut.loop(voice, 1)
         softcut.loop_start(voice, BUFFER_START)
         softcut.loop_end(voice, BUFFER_START + state.base_loop)
-        softcut.position(voice, BUFFER_START + PLAY_LAG)
+        softcut.position(voice, BUFFER_START + current_play_lag)
         softcut.rate(voice, 1.0)
         softcut.level(voice, 1.0)
         softcut.fade_time(voice, 0.03)
         softcut.rec_level(voice, 1.0)
         softcut.pre_level(voice, 1.0)
-        softcut.rec_offset(voice, PLAY_LAG)
+        softcut.rec_offset(voice, current_play_lag)
         softcut.level_slew_time(voice, state.slew)
         softcut.rate_slew_time(voice, state.slew)
         softcut.recpre_slew_time(voice, state.slew)
