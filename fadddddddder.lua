@@ -1,12 +1,12 @@
 -- fadddddddder: octo-inspired scene crossfader for live input
--- v0.3.1 @alvinashiatey
+-- v0.4.0 @alvinashiatey
 
 engine.name            = "Fadddddddder"
 
 local pages            = { "perform", "scene_a", "scene_b" }
 local page_labels      = { perform = "perform", scene_a = "scene A", scene_b = "scene B" }
 
-local effect_order     = { "thru", "lp", "hp", "dub", "micro", "freeze" }
+local effect_order     = { "thru", "lp", "hp", "dub", "micro", "freeze", "drive", "chorus", "verb", "ring" }
 local effect_labels    = {
     thru   = "thru",
     lp     = "lowpass",
@@ -14,6 +14,23 @@ local effect_labels    = {
     dub    = "dub echo",
     micro  = "microloop",
     freeze = "freeze",
+    drive  = "drive",
+    chorus = "chorus",
+    verb   = "reverb",
+    ring   = "ringmod",
+}
+
+local effect_params    = {
+    thru   = { "tone", "gain" },
+    lp     = { "res", "weight" },
+    hp     = { "res", "weight" },
+    dub    = { "time", "feedback" },
+    micro  = { "size", "wobble" },
+    freeze = { "size", "hold" },
+    drive  = { "gain", "tone" },
+    chorus = { "rate", "depth" },
+    verb   = { "room", "damp" },
+    ring   = { "freq", "shape" },
 }
 
 local effect_index_map = {}
@@ -26,8 +43,8 @@ local state        = {
     cursor     = 1,
     xfade      = 0.0,
     scenes     = {
-        A = { effect = "thru", amount = 0.0 },
-        B = { effect = "dub", amount = 0.55 },
+        A = { effect = "thru", amount = 0.0, param1 = 0.5, param2 = 0.5 },
+        B = { effect = "dub", amount = 0.55, param1 = 0.42, param2 = 0.65 },
     },
 }
 
@@ -48,9 +65,13 @@ local function sync_scene(scene_name)
     if scene_name == "A" then
         engine.set_scene_a_effect(effect_engine_index(scene.effect))
         engine.set_scene_a_amount(scene.amount)
+        engine.set_scene_a_param1(scene.param1)
+        engine.set_scene_a_param2(scene.param2)
     else
         engine.set_scene_b_effect(effect_engine_index(scene.effect))
         engine.set_scene_b_amount(scene.amount)
+        engine.set_scene_b_param1(scene.param1)
+        engine.set_scene_b_param2(scene.param2)
     end
 end
 
@@ -77,7 +98,7 @@ local function scene_for_page(page)
 end
 
 local function change_page(delta)
-    state.page_index = ((state.page_index - 1 + delta) % #pages) + 1
+    state.page_index = clamp(state.page_index + delta, 1, #pages)
     state.cursor     = 1
 end
 
@@ -86,8 +107,12 @@ local function adjust_scene(scene_name, d)
     if state.cursor == 1 then
         local idx    = clamp(effect_index_map[scene.effect] + d, 1, #effect_order)
         scene.effect = effect_order[idx]
-    else
+    elseif state.cursor == 2 then
         scene.amount = clamp(scene.amount + d * 0.02, 0, 1)
+    elseif state.cursor == 3 then
+        scene.param1 = clamp(scene.param1 + d * 0.02, 0, 1)
+    else
+        scene.param2 = clamp(scene.param2 + d * 0.02, 0, 1)
     end
     apply_bundle()
 end
@@ -102,6 +127,12 @@ local function draw_header(title)
     screen.text("fadddddddder")
     screen.move(124, 8)
     screen.text_right(title)
+end
+
+local function draw_row(y, selected, label, value)
+    screen.level(selected and 15 or 4)
+    screen.move(6, y); screen.text(label)
+    screen.move(122, y); screen.text_right(value)
 end
 
 local function draw_crossfader(y)
@@ -133,38 +164,43 @@ end
 
 local function draw_perform_page()
     draw_header(page_labels.perform)
-    draw_crossfader(24)
 
-    screen.level(8)
-    screen.move(6, 40); screen.text(effect_labels[state.scenes.A.effect])
-    screen.move(122, 40); screen.text_right(effect_labels[state.scenes.B.effect])
+    screen.level(3)
+    screen.rect(4, 16, 56, 30); screen.stroke()
+    screen.rect(68, 16, 56, 30); screen.stroke()
 
     screen.level(15)
-    screen.move(6, 52); screen.text(pct(state.scenes.A.amount))
-    screen.move(122, 52); screen.text_right(pct(state.scenes.B.amount))
+    screen.move(8, 25); screen.text("A")
+    screen.move(72, 25); screen.text("B")
+
+    screen.level(8)
+    screen.move(22, 25); screen.text(effect_labels[state.scenes.A.effect])
+    screen.move(86, 25); screen.text(effect_labels[state.scenes.B.effect])
+
+    screen.level(15)
+    screen.move(8, 38); screen.text(pct(state.scenes.A.amount))
+    screen.move(72, 38); screen.text(pct(state.scenes.B.amount))
+
+    draw_crossfader(55)
 
     screen.level(6)
-    screen.move(6, 62)
-    screen.text(string.format("E1/K2/K3 page  E3 xfade %s", pct(state.xfade)))
+    screen.move(34, 63)
+    screen.text(string.format("E3 fade %s", pct(state.xfade)))
 end
 
 local function draw_scene_page(scene_name)
     local scene = state.scenes[scene_name]
+    local param_labels = effect_params[scene.effect]
     draw_header(page_labels[current_page()])
 
-    screen.level(state.cursor == 1 and 15 or 4)
-    screen.move(6, 24); screen.text("effect")
-    screen.move(122, 24); screen.text_right(effect_labels[scene.effect])
-
-    screen.level(state.cursor == 2 and 15 or 4)
-    screen.move(6, 38); screen.text("amount")
-    screen.move(122, 38); screen.text_right(pct(scene.amount))
+    draw_row(20, state.cursor == 1, "effect", effect_labels[scene.effect])
+    draw_row(31, state.cursor == 2, "amount", pct(scene.amount))
+    draw_row(42, state.cursor == 3, param_labels[1], pct(scene.param1))
+    draw_row(53, state.cursor == 4, param_labels[2], pct(scene.param2))
 
     screen.level(5)
-    screen.move(6, 54)
+    screen.move(6, 63)
     screen.text("K1 jump  E2 sel  E3 edit")
-
-    draw_crossfader(61)
 end
 
 -- ---------------------------------------------------------------------------
@@ -196,7 +232,7 @@ function enc(n, d)
         change_page(d > 0 and 1 or -1)
     elseif n == 2 then
         if page ~= "perform" then
-            state.cursor = clamp(state.cursor + d, 1, 2)
+            state.cursor = clamp(state.cursor + d, 1, 4)
         end
     elseif n == 3 then
         if page == "perform" then

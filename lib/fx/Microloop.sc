@@ -1,9 +1,9 @@
 FaddMicroloop {
-  *ar { |dry, amount|
+  *ar { |dry, amount, param1, param2|
     var time, rate, depth, tapA, tapB, wet, dryLevel, wetLevel, color;
-    time = LinExp.kr(amount, 0, 1, 0.18, 0.02);
-    rate = LinLin.kr(amount, 0, 1, 0.25, 9);
-    depth = time * LinLin.kr(amount, 0, 1, 0.05, 0.45);
+    time = LinExp.kr(param1, 0, 1, 0.22, 0.012) * LinLin.kr(amount, 0, 1, 1.0, 0.55);
+    rate = LinLin.kr(param2, 0, 1, 0.2, 12);
+    depth = time * LinLin.kr(amount, 0, 1, 0.04, 0.5);
     tapA = DelayC.ar(dry, 0.25, Clip.kr(time + SinOsc.kr(rate, 0, depth), 0.005, 0.24));
     tapB = DelayC.ar(dry, 0.25, Clip.kr((time * 0.62) + 0.004, 0.005, 0.24));
     color = LinExp.kr(amount, 0, 1, 11000, 1700);

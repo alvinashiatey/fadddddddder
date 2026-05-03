@@ -1,8 +1,8 @@
 FaddDub {
-  *ar { |dry, amount|
+  *ar { |dry, amount, param1, param2|
     var time, decay, color, wet, dryLevel, wetLevel;
-    time = LinLin.kr(amount, 0, 1, 0.12, 0.85);
-    decay = LinLin.kr(amount, 0, 1, 0.6, 5.5);
+    time = LinLin.kr(param1, 0, 1, 0.08, 0.95);
+    decay = LinLin.kr(param2, 0, 1, 0.35, 7.5) * LinLin.kr(amount, 0, 1, 0.5, 1.25);
     color = LinExp.kr(amount, 0, 1, 10000, 1000);
     wet = CombC.ar(dry, 1.2, time, decay);
     wet = LPF.ar(HPF.ar(wet, 55), color).tanh;

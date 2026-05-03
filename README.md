@@ -10,12 +10,12 @@ First pass. The core workflow is there:
 
 - assign an effect macro to scene `A`
 - assign an effect macro to scene `B`
-- set each scene amount
+- set each scene amount plus two effect-specific parameters
 - sweep the crossfader between them on the performance page
 
 This version is intentionally small, but the live DSP now runs in a custom SuperCollider engine instead of `softcut` transport tricks.
 
-## Effects In v0.1
+## Effects
 
 - `thru`
 - `lowpass`
@@ -23,12 +23,16 @@ This version is intentionally small, but the live DSP now runs in a custom Super
 - `dub echo`
 - `microloop`
 - `freeze`
+- `drive`
+- `chorus`
+- `reverb`
+- `ringmod`
 
 ## Controls
 
 ### Global
 
-- `E1`: change page
+- `E1`: change page, clamped at `perform` and `scene B`
 - `K2` / `K3`: previous / next page
 
 ### Perform page
@@ -45,18 +49,18 @@ This version is intentionally small, but the live DSP now runs in a custom Super
 ## Pages
 
 - `perform`: main `[A] -|- [B]` crossfader view
-- `scene A`: choose effect and amount for scene `A`
-- `scene B`: choose effect and amount for scene `B`
+- `scene A`: choose effect, amount, and two effect parameters for scene `A`
+- `scene B`: choose effect, amount, and two effect parameters for scene `B`
 
 ## Audio Model
 
 This is a live-input SuperCollider processor with a scene crossfader.
 
 - incoming audio is processed by a custom engine in `lib/Engine_Fadddddddder.sc`
-- scene `A` and scene `B` each run their own effect macro and amount
+- scene `A` and scene `B` each run their own effect macro, amount, and two macro parameters
 - the engine crossfades between those scene outputs in real time
 - all effect parameters are smoothed in SuperCollider to reduce zipper noise and clicks
-- `thru`, `lowpass`, `highpass`, `dub echo`, `microloop`, and `freeze` are all generated in the engine
+- all effects are generated in the engine using classes in `lib/fx/`
 
 That means simple filter moves no longer depend on `softcut` head jumps, which was the main source of the clicking and accidental short-loop behavior.
 
@@ -91,12 +95,15 @@ fadddddddder/
       Dub.sc
       Microloop.sc
       Freeze.sc
+      Drive.sc
+      Chorus.sc
+      Reverb.sc
+      Ringmod.sc
 ```
 
 ## Likely Next Steps
 
 - add PARAMS for persistence and pset support
-- add per-effect sub-parameters
 - add scene copy/capture actions
 - add waveform or input/output metering
 - tune the SC macros on actual norns hardware
