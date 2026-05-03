@@ -1,7 +1,7 @@
 -- fadddddddder: octo-inspired scene crossfader for live input
--- v0.3.0 @alvinashiatey
+-- v0.3.1 @alvinashiatey
 
-engine.name = "Fadddddddder"
+engine.name            = "Fadddddddder"
 
 local pages            = { "perform", "scene_a", "scene_b" }
 local page_labels      = { perform = "perform", scene_a = "scene A", scene_b = "scene B" }
@@ -16,23 +16,21 @@ local effect_labels    = {
     freeze = "freeze",
 }
 
--- Reverse lookup: effect name → index (built once, O(1) thereafter)
 local effect_index_map = {}
 for i, name in ipairs(effect_order) do effect_index_map[name] = i end
 
 local redraw_metro = nil
 
 local state        = {
-    page_index   = 1,
-    cursor       = 1,
-    xfade        = 0.0,
-    scenes       = {
+    page_index = 1,
+    cursor     = 1,
+    xfade      = 0.0,
+    scenes     = {
         A = { effect = "thru", amount = 0.0 },
         B = { effect = "dub", amount = 0.55 },
     },
 }
 
--- util.linlin replaces the local blend helper (already in norns stdlib)
 local linlin       = util.linlin
 local clamp        = util.clamp
 
@@ -41,17 +39,17 @@ local clamp        = util.clamp
 -- ---------------------------------------------------------------------------
 
 local function effect_engine_index(name)
+    -- Engine expects 0-based index
     return (effect_index_map[name] or 1) - 1
 end
 
 local function sync_scene(scene_name)
     local scene = state.scenes[scene_name]
-    local effect_idx = effect_engine_index(scene.effect)
     if scene_name == "A" then
-        engine.set_scene_a_effect(effect_idx)
+        engine.set_scene_a_effect(effect_engine_index(scene.effect))
         engine.set_scene_a_amount(scene.amount)
     else
-        engine.set_scene_b_effect(effect_idx)
+        engine.set_scene_b_effect(effect_engine_index(scene.effect))
         engine.set_scene_b_amount(scene.amount)
     end
 end
@@ -86,8 +84,7 @@ end
 local function adjust_scene(scene_name, d)
     local scene = state.scenes[scene_name]
     if state.cursor == 1 then
-        -- Velocity-sensitive: fast spin jumps multiple effects
-        local idx = clamp(effect_index_map[scene.effect] + d, 1, #effect_order)
+        local idx    = clamp(effect_index_map[scene.effect] + d, 1, #effect_order)
         scene.effect = effect_order[idx]
     else
         scene.amount = clamp(scene.amount + d * 0.02, 0, 1)
@@ -175,25 +172,30 @@ end
 -- ---------------------------------------------------------------------------
 
 function init()
-    engine.set_num_input_channels(2)
-    engine.set_input_amp(1.0)
-    engine.set_output_amp(1.0)
-    apply_bundle()
-    redraw_metro = metro.init()
-    redraw_metro.time = 1 / 15
+    -- The engine's alloc (SynthDef compilation + Synth instantiation) runs
+    -- asynchronously. Sending engine commands immediately in init() races
+    -- against alloc completing and will hit nil synth references in SC.
+    -- A short clock.sleep gives alloc time to finish before we push state.
+    clock.run(function()
+        clock.sleep(0.5)
+        engine.set_num_input_channels(2)
+        engine.set_input_amp(1.0)
+        engine.set_output_amp(1.0)
+        apply_bundle()
+    end)
+
+    redraw_metro       = metro.init()
+    redraw_metro.time  = 1 / 15
     redraw_metro.event = redraw
     redraw_metro:start()
-    redraw()
 end
 
 function enc(n, d)
     local page = current_page()
     if n == 1 then
-        -- E1 still snaps to ±1 page regardless of speed
         change_page(d > 0 and 1 or -1)
     elseif n == 2 then
         if page ~= "perform" then
-            -- Velocity-sensitive cursor (clamped to 1-2)
             state.cursor = clamp(state.cursor + d, 1, 2)
         end
     elseif n == 3 then
@@ -219,14 +221,12 @@ function key(n, z)
     elseif n == 1 then
         if page == "perform" then
             state.xfade = 0.5
-            apply_bundle()
         elseif page == "scene_a" then
             state.xfade = 0.0
-            apply_bundle()
         elseif page == "scene_b" then
             state.xfade = 1.0
-            apply_bundle()
         end
+        apply_bundle()
     end
 
     redraw()
