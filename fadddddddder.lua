@@ -19,6 +19,7 @@ local effect_index_map = {}
 for i, name in ipairs(effect_order) do effect_index_map[name] = i end
 
 local BUFFER_START = 1.0
+local redraw_metro = nil
 
 local state        = {
     page_index   = 1,
@@ -309,8 +310,8 @@ local function draw_perform_page()
     screen.move(122, 52); screen.text_right(pct(state.scenes.B.amount))
 
     screen.level(6)
-    screen.move(48, 62)
-    screen.text(string.format("xfade %s", pct(state.xfade)))
+    screen.move(6, 62)
+    screen.text(string.format("E1/K2/K3 page  E3 xfade %s", pct(state.xfade)))
 end
 
 local function draw_scene_page(scene_name)
@@ -327,7 +328,7 @@ local function draw_scene_page(scene_name)
 
     screen.level(5)
     screen.move(6, 54)
-    screen.text("K2/K3 page  E2 sel  E3 edit")
+    screen.text("E1/K2/K3 page  E2 sel  E3 edit")
 
     draw_crossfader(61)
 end
@@ -338,12 +339,11 @@ end
 
 function init()
     setup_softcut()
-    -- Metro drives redraws; manual redraw() calls in enc/key are removed
-    -- to avoid double-drawing every interaction.
-    local m = metro.init()
-    m.time  = 1 / 15
-    m.event = redraw
-    m:start()
+    redraw_metro = metro.init()
+    redraw_metro.time = 1 / 15
+    redraw_metro.event = redraw
+    redraw_metro:start()
+    redraw()
 end
 
 function enc(n, d)
@@ -365,30 +365,27 @@ function enc(n, d)
             if scene_name then adjust_scene(scene_name, d) end
         end
     end
+    redraw()
 end
 
 function key(n, z)
     if z == 0 then return end
     local page = current_page()
 
-    if page == "perform" then
-        if n == 1 then
+    if n == 2 then
+        change_page(-1)
+    elseif n == 3 then
+        change_page(1)
+    elseif n == 1 then
+        if page == "perform" then
             state.xfade = 0.5
-        elseif n == 2 then
-            state.xfade = 0.0
-        elseif n == 3 then
-            state.xfade = 1.0
-        end
-        apply_bundle()
-    else
-        if n == 1 then
+            apply_bundle()
+        else
             reframe_positions()
-        elseif n == 2 then
-            change_page(-1)
-        elseif n == 3 then
-            change_page(1)
         end
     end
+
+    redraw()
 end
 
 function redraw()
@@ -405,9 +402,10 @@ function redraw()
 end
 
 function cleanup()
-    -- metro stops automatically when the script unloads;
-    -- explicit stop is still good practice
-    metro.free_all()
+    if redraw_metro ~= nil then
+        redraw_metro:stop()
+        redraw_metro = nil
+    end
     audio.level_monitor(0.0)
     audio.level_adc_cut(0.0)
     softcut.poll_stop_phase()
