@@ -25,27 +25,26 @@ Engine_Fadddddddder : CroneEngine {
       Out.ar(out, LeakDC.ar(sig));
     }).add;
 
-    SynthDef(\fadddddddderScene, { |inBus = 0, out = 0, effect = 0, amount = 0, param1 = 0.5, param2 = 0.5|
-      var dry, a, p1, p2, eff, thru, lowpass, highpass, dub, micro, freeze, drive, chorus, verb, ring, left, right, sig;
+    SynthDef(\fadddddddderScene, { |inBus = 0, out = 0, effect = 0, amount = 0, param1 = 0.5, param2 = 0.5, param3 = 0.5, param4 = 0.5|
+      var dry, a, p1, p2, p3, p4, eff, thru, filter, eq, mod, space, texture, delay, left, right, sig;
       dry = In.ar(inBus, 2);
       a = Lag.kr(amount.clip(0, 1), 0.08);
       p1 = Lag.kr(param1.clip(0, 1), 0.08);
       p2 = Lag.kr(param2.clip(0, 1), 0.08);
-      eff = Lag.kr(effect.clip(0, 9), 0.05);
+      p3 = Lag.kr(param3.clip(0, 1), 0.08);
+      p4 = Lag.kr(param4.clip(0, 1), 0.08);
+      eff = Lag.kr(effect.clip(0, 6), 0.05);
 
       thru = FaddThru.ar(dry, a, p1, p2);
-      lowpass = FaddLowpass.ar(dry, a, p1, p2);
-      highpass = FaddHighpass.ar(dry, a, p1, p2);
-      dub = FaddDub.ar(dry, a, p1, p2);
-      micro = FaddMicroloop.ar(dry, a, p1, p2);
-      freeze = FaddFreeze.ar(dry, a, p1, p2);
-      drive = FaddDrive.ar(dry, a, p1, p2);
-      chorus = FaddChorus.ar(dry, a, p1, p2);
-      verb = FaddReverb.ar(dry, a, p1, p2);
-      ring = FaddRingmod.ar(dry, a, p1, p2);
+      filter = FaddMacroFilter.ar(dry, a, p1, p2, p3, p4);
+      eq = FaddMacroEQ.ar(dry, a, p1, p2, p3, p4);
+      mod = FaddMacroMod.ar(dry, a, p1, p2, p3, p4);
+      space = FaddMacroSpace.ar(dry, a, p1, p2, p3, p4);
+      texture = FaddMacroTexture.ar(dry, a, p1, p2, p3, p4);
+      delay = FaddMacroDelay.ar(dry, a, p1, p2, p3, p4);
 
-      left = SelectX.ar(eff, [thru[0], lowpass[0], highpass[0], dub[0], micro[0], freeze[0], drive[0], chorus[0], verb[0], ring[0]]);
-      right = SelectX.ar(eff, [thru[1], lowpass[1], highpass[1], dub[1], micro[1], freeze[1], drive[1], chorus[1], verb[1], ring[1]]);
+      left = SelectX.ar(eff, [thru[0], filter[0], eq[0], mod[0], space[0], texture[0], delay[0]]);
+      right = SelectX.ar(eff, [thru[1], filter[1], eq[1], mod[1], space[1], texture[1], delay[1]]);
       sig = LeakDC.ar(Limiter.ar([left, right], 0.98));
       Out.ar(out, sig);
     }).add;
@@ -74,7 +73,9 @@ Engine_Fadddddddder : CroneEngine {
       \effect, 0,
       \amount, 0,
       \param1, 0.5,
-      \param2, 0.5
+      \param2, 0.5,
+      \param3, 0.5,
+      \param4, 0.5
     ], inputStage, \addAfter);
 
     sceneBStage = Synth.new(\fadddddddderScene, [
@@ -83,7 +84,9 @@ Engine_Fadddddddder : CroneEngine {
       \effect, 3,
       \amount, 0.55,
       \param1, 0.42,
-      \param2, 0.65
+      \param2, 0.65,
+      \param3, 0,
+      \param4, 0.45
     ], sceneAStage, \addAfter);
 
     mixStage = Synth.new(\fadddddddderMix, [
@@ -98,10 +101,14 @@ Engine_Fadddddddder : CroneEngine {
     this.addCommand("set_scene_a_amount", "f", { |msg| sceneAStage.set(\amount, msg[1]); });
     this.addCommand("set_scene_a_param1", "f", { |msg| sceneAStage.set(\param1, msg[1]); });
     this.addCommand("set_scene_a_param2", "f", { |msg| sceneAStage.set(\param2, msg[1]); });
+    this.addCommand("set_scene_a_param3", "f", { |msg| sceneAStage.set(\param3, msg[1]); });
+    this.addCommand("set_scene_a_param4", "f", { |msg| sceneAStage.set(\param4, msg[1]); });
     this.addCommand("set_scene_b_effect", "f", { |msg| sceneBStage.set(\effect, msg[1]); });
     this.addCommand("set_scene_b_amount", "f", { |msg| sceneBStage.set(\amount, msg[1]); });
     this.addCommand("set_scene_b_param1", "f", { |msg| sceneBStage.set(\param1, msg[1]); });
     this.addCommand("set_scene_b_param2", "f", { |msg| sceneBStage.set(\param2, msg[1]); });
+    this.addCommand("set_scene_b_param3", "f", { |msg| sceneBStage.set(\param3, msg[1]); });
+    this.addCommand("set_scene_b_param4", "f", { |msg| sceneBStage.set(\param4, msg[1]); });
     this.addCommand("set_xfade", "f", { |msg| mixStage.set(\xfade, msg[1]); });
     this.addCommand("set_input_amp", "f", { |msg| this.setInputAmp(msg[1]); });
     this.addCommand("set_output_amp", "f", { |msg| this.setOutputAmp(msg[1]); });

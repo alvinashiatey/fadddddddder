@@ -10,23 +10,21 @@ First pass. The core workflow is there:
 
 - assign an effect macro to scene `A`
 - assign an effect macro to scene `B`
-- set each scene amount plus two effect-specific parameters
+- set each scene amount plus effect-specific macro parameters
 - sweep the crossfader between them on the performance page
+- store and recall scene settings with norns psets
 
 This version is intentionally small, but the live DSP now runs in a custom SuperCollider engine instead of `softcut` transport tricks.
 
-## Effects
+## Macro Effects
 
 - `thru`
-- `lowpass`
-- `highpass`
-- `dub echo`
-- `microloop`
-- `freeze`
-- `drive`
-- `chorus`
-- `reverb`
-- `ringmod`
+- `filter`: 12/24dB multimode filter
+- `eq`: parametric EQ and DJ-style kill EQ
+- `mod`: 2-10 stage phaser, flanger, and 2-5 tap chorus
+- `space`: spatializer, plate, spring, and dark reverb
+- `texture`: comb filter, compressor, lo-fi, and ring-style motion
+- `delay`: echo, dub delay, and freeze-style delay
 
 ## Controls
 
@@ -49,18 +47,19 @@ This version is intentionally small, but the live DSP now runs in a custom Super
 ## Pages
 
 - `perform`: main `[A] -|- [B]` crossfader view
-- `scene A`: choose effect, amount, and two effect parameters for scene `A`
-- `scene B`: choose effect, amount, and two effect parameters for scene `B`
+- `scene A`: choose effect, amount, and macro parameters for scene `A`
+- `scene B`: choose effect, amount, and macro parameters for scene `B`
 
 ## Audio Model
 
 This is a live-input SuperCollider processor with a scene crossfader.
 
 - incoming audio is processed by a custom engine in `lib/Engine_Fadddddddder.sc`
-- scene `A` and scene `B` each run their own effect macro, amount, and two macro parameters
+- scene `A` and scene `B` each run their own macro effect, amount, and four persisted macro values
 - the engine crossfades between those scene outputs in real time
 - all effect parameters are smoothed in SuperCollider to reduce zipper noise and clicks
 - all effects are generated in the engine using classes in `lib/fx/`
+- crossfade, scene effects, scene amounts, and macro values are backed by norns params for pset persistence
 
 That means simple filter moves no longer depend on `softcut` head jumps, which was the main source of the clicking and accidental short-loop behavior.
 
@@ -99,11 +98,26 @@ fadddddddder/
       Chorus.sc
       Reverb.sc
       Ringmod.sc
+      MacroFilter.sc
+      MacroEQ.sc
+      MacroMod.sc
+      MacroSpace.sc
+      MacroTexture.sc
+      MacroDelay.sc
 ```
+
+## Persistence
+
+Scene settings are stored as norns params:
+
+- crossfade
+- scene A effect, amount, macro 1, macro 2, macro 3, macro 4
+- scene B effect, amount, macro 1, macro 2, macro 3, macro 4
+
+Use the normal norns pset workflow to save and recall these values.
 
 ## Likely Next Steps
 
-- add PARAMS for persistence and pset support
 - add scene copy/capture actions
 - add waveform or input/output metering
 - tune the SC macros on actual norns hardware
