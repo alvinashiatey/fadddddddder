@@ -66,7 +66,13 @@ That means the script behaves more like a scene-morphing live buffer processor t
 After this repo is on GitHub:
 
 ```text
-;install https://github.com/<your-user>/fadddddddder
+;install https://github.com/alvinashiatey/fadddddddder
+```
+
+Repo:
+
+```text
+https://github.com/alvinashiatey/fadddddddder.git
 ```
 
 ## File Layout
