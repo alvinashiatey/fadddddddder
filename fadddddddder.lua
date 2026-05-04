@@ -1,15 +1,15 @@
 -- fadddddddder: octo-inspired scene crossfader for live input
--- v0.5.0 @alvinashiatey
+-- v0.6.0 @alvinashiatey
 
-engine.name            = "Fadddddddder"
+engine.name = "Fadddddddder"
 
-local ControlSpec      = require "controlspec"
+local tabutil = require "tabutil"
 
-local pages            = { "perform", "scene_a", "scene_b" }
-local page_labels      = { perform = "perform", scene_a = "scene A", scene_b = "scene B" }
+local pages = { "perform", "scene_a", "scene_b" }
+local page_labels = { perform = "perform", scene_a = "scene A", scene_b = "scene B" }
 
-local effect_order     = { "thru", "filter", "eq", "mod", "space", "texture", "delay" }
-local effect_labels    = {
+local effect_order = { "thru", "filter", "eq", "mod", "space", "texture", "delay" }
+local effect_labels = {
     thru    = "thru",
     filter  = "filter",
     eq      = "eq",
@@ -19,9 +19,7 @@ local effect_labels    = {
     delay   = "delay",
 }
 
-local effect_options   = {}
-
-local effect_params    = {
+local effect_params = {
     thru    = { "tone", "gain" },
     filter  = { "cutoff", "res", "mode", "slope" },
     eq      = { "freq", "gain", "q", "style" },
@@ -41,55 +39,153 @@ local effect_param_counts = {
     delay   = 4,
 }
 
+local default_values = {
+    thru    = { amount = 0.0, param1 = 0.5,  param2 = 0.5,  param3 = 0.5, param4 = 0.5 },
+    filter  = { amount = 0.65, param1 = 0.55, param2 = 0.45, param3 = 0.0, param4 = 0.0 },
+    eq      = { amount = 0.55, param1 = 0.5,  param2 = 0.5,  param3 = 0.4, param4 = 0.0 },
+    mod     = { amount = 0.55, param1 = 0.3,  param2 = 0.45, param3 = 0.0, param4 = 0.5 },
+    space   = { amount = 0.55, param1 = 0.55, param2 = 0.35, param3 = 0.4, param4 = 0.7 },
+    texture = { amount = 0.45, param1 = 0.45, param2 = 0.35, param3 = 0.0, param4 = 0.4 },
+    delay   = { amount = 0.55, param1 = 0.42, param2 = 0.65, param3 = 0.0, param4 = 0.45 },
+}
+
 local effect_index_map = {}
-for i, name in ipairs(effect_order) do
-    effect_index_map[name] = i
-    effect_options[i] = effect_labels[name]
-end
+for i, name in ipairs(effect_order) do effect_index_map[name] = i end
+
+local NUM_SCENES = 16
+local data_dir = _path.data .. "fadddddddder/"
+local bank_file = data_dir .. "scene_bank.data"
 
 local redraw_metro = nil
 local engine_ready = false
+local k1_down = false
+local k1_used_as_modifier = false
 
-local state        = {
+local linlin = util.linlin
+local clamp = util.clamp
+
+local state = {
     page_index = 1,
-    cursor     = 1,
-    xfade      = 0.0,
-    scenes     = {
-        A = { effect = "thru", amount = 0.0, param1 = 0.5, param2 = 0.5, param3 = 0.5, param4 = 0.5 },
-        B = { effect = "delay", amount = 0.55, param1 = 0.42, param2 = 0.65, param3 = 0.0, param4 = 0.45 },
-    },
+    cursor = 1,
+    xfade = 0.0,
+    slots = { A = 1, B = 9 },
+    bank = {},
 }
 
-local linlin       = util.linlin
-local clamp        = util.clamp
-local pct_spec     = ControlSpec.new(0, 1, "lin", 0.01, 0, "")
-local cursor_max_for_scene
+-- ---------------------------------------------------------------------------
+-- Scene Bank
+-- ---------------------------------------------------------------------------
+
+local function clone_values(values)
+    return {
+        amount = values.amount,
+        param1 = values.param1,
+        param2 = values.param2,
+        param3 = values.param3,
+        param4 = values.param4,
+    }
+end
+
+local function default_effect_values()
+    local values = {}
+    for _, effect in ipairs(effect_order) do values[effect] = clone_values(default_values[effect]) end
+    return values
+end
+
+local function new_scene_slot(index)
+    local effect = index == 9 and "delay" or "thru"
+    return {
+        effect = effect,
+        values = default_effect_values(),
+    }
+end
+
+local function sanitize_slot(slot, index)
+    if type(slot) ~= "table" then return new_scene_slot(index) end
+    if effect_index_map[slot.effect] == nil then slot.effect = index == 9 and "delay" or "thru" end
+    if type(slot.values) ~= "table" then slot.values = {} end
+    for _, effect in ipairs(effect_order) do
+        local defaults = default_values[effect]
+        local values = slot.values[effect]
+        if type(values) ~= "table" then
+            slot.values[effect] = clone_values(defaults)
+        else
+            values.amount = clamp(tonumber(values.amount) or defaults.amount, 0, 1)
+            values.param1 = clamp(tonumber(values.param1) or defaults.param1, 0, 1)
+            values.param2 = clamp(tonumber(values.param2) or defaults.param2, 0, 1)
+            values.param3 = clamp(tonumber(values.param3) or defaults.param3, 0, 1)
+            values.param4 = clamp(tonumber(values.param4) or defaults.param4, 0, 1)
+        end
+    end
+    return slot
+end
+
+local function ensure_bank()
+    for i = 1, NUM_SCENES do state.bank[i] = sanitize_slot(state.bank[i], i) end
+    state.slots.A = clamp(tonumber(state.slots.A) or 1, 1, NUM_SCENES)
+    state.slots.B = clamp(tonumber(state.slots.B) or 9, 1, NUM_SCENES)
+    state.xfade = clamp(tonumber(state.xfade) or 0, 0, 1)
+end
+
+local function save_bank()
+    os.execute("mkdir -p " .. data_dir)
+    tabutil.save({ version = 1, slots = state.slots, xfade = state.xfade, bank = state.bank }, bank_file)
+end
+
+local function load_bank()
+    os.execute("mkdir -p " .. data_dir)
+    local ok, data = pcall(tabutil.load, bank_file)
+    if ok and type(data) == "table" then
+        state.slots = type(data.slots) == "table" and data.slots or state.slots
+        state.xfade = data.xfade or state.xfade
+        state.bank = type(data.bank) == "table" and data.bank or state.bank
+    end
+    ensure_bank()
+    save_bank()
+end
+
+local function scene_for_side(side)
+    return state.bank[state.slots[side]]
+end
+
+local function values_for_scene(scene)
+    return scene.values[scene.effect]
+end
+
+local function slot_label(side)
+    return string.format("%s%02d", side, state.slots[side])
+end
+
+local function cursor_max_for_scene(scene)
+    return 2 + (effect_param_counts[scene.effect] or 4)
+end
 
 -- ---------------------------------------------------------------------------
--- Engine sync
+-- Engine Sync
 -- ---------------------------------------------------------------------------
 
 local function effect_engine_index(name)
-    -- Engine expects 0-based index
     return (effect_index_map[name] or 1) - 1
 end
 
-local function sync_scene(scene_name)
-    local scene = state.scenes[scene_name]
-    if scene_name == "A" then
+local function sync_scene(side)
+    local scene = scene_for_side(side)
+    local values = values_for_scene(scene)
+
+    if side == "A" then
         engine.set_scene_a_effect(effect_engine_index(scene.effect))
-        engine.set_scene_a_amount(scene.amount)
-        engine.set_scene_a_param1(scene.param1)
-        engine.set_scene_a_param2(scene.param2)
-        engine.set_scene_a_param3(scene.param3)
-        engine.set_scene_a_param4(scene.param4)
+        engine.set_scene_a_amount(values.amount)
+        engine.set_scene_a_param1(values.param1)
+        engine.set_scene_a_param2(values.param2)
+        engine.set_scene_a_param3(values.param3)
+        engine.set_scene_a_param4(values.param4)
     else
         engine.set_scene_b_effect(effect_engine_index(scene.effect))
-        engine.set_scene_b_amount(scene.amount)
-        engine.set_scene_b_param1(scene.param1)
-        engine.set_scene_b_param2(scene.param2)
-        engine.set_scene_b_param3(scene.param3)
-        engine.set_scene_b_param4(scene.param4)
+        engine.set_scene_b_amount(values.amount)
+        engine.set_scene_b_param1(values.param1)
+        engine.set_scene_b_param2(values.param2)
+        engine.set_scene_b_param3(values.param3)
+        engine.set_scene_b_param4(values.param4)
     end
 end
 
@@ -100,175 +196,58 @@ local function apply_bundle()
     engine.set_xfade(state.xfade)
 end
 
-local function scene_param_prefix(scene_name)
-    return scene_name == "A" and "scene_a" or "scene_b"
-end
-
-local function set_scene_from_params(scene_name)
-    local scene = state.scenes[scene_name]
-    local prefix = scene_param_prefix(scene_name)
-    scene.effect = effect_order[params:get(prefix .. "_effect")]
-    scene.amount = params:get(prefix .. "_amount")
-    scene.param1 = params:get(prefix .. "_param1")
-    scene.param2 = params:get(prefix .. "_param2")
-    scene.param3 = params:get(prefix .. "_param3")
-    scene.param4 = params:get(prefix .. "_param4")
-end
-
-local function add_scene_params(scene_name)
-    local prefix = scene_param_prefix(scene_name)
-    local label = scene_name == "A" and "Scene A" or "Scene B"
-    local scene = state.scenes[scene_name]
-
-    params:add_separator(label)
-    params:add_option(prefix .. "_effect", label .. " Effect", effect_options, effect_index_map[scene.effect])
-    params:set_action(prefix .. "_effect", function(value)
-        state.scenes[scene_name].effect = effect_order[value]
-        state.cursor = clamp(state.cursor, 1, cursor_max_for_scene(state.scenes[scene_name]))
-        apply_bundle()
-        redraw()
-    end)
-
-    params:add_control(prefix .. "_amount", label .. " Amount", pct_spec)
-    params:set(prefix .. "_amount", scene.amount)
-    params:set_action(prefix .. "_amount", function(value)
-        state.scenes[scene_name].amount = value
-        apply_bundle()
-        redraw()
-    end)
-
-    params:add_control(prefix .. "_param1", label .. " Macro 1", pct_spec)
-    params:set(prefix .. "_param1", scene.param1)
-    params:set_action(prefix .. "_param1", function(value)
-        state.scenes[scene_name].param1 = value
-        apply_bundle()
-        redraw()
-    end)
-
-    params:add_control(prefix .. "_param2", label .. " Macro 2", pct_spec)
-    params:set(prefix .. "_param2", scene.param2)
-    params:set_action(prefix .. "_param2", function(value)
-        state.scenes[scene_name].param2 = value
-        apply_bundle()
-        redraw()
-    end)
-
-    params:add_control(prefix .. "_param3", label .. " Macro 3", pct_spec)
-    params:set(prefix .. "_param3", scene.param3)
-    params:set_action(prefix .. "_param3", function(value)
-        state.scenes[scene_name].param3 = value
-        apply_bundle()
-        redraw()
-    end)
-
-    params:add_control(prefix .. "_param4", label .. " Macro 4", pct_spec)
-    params:set(prefix .. "_param4", scene.param4)
-    params:set_action(prefix .. "_param4", function(value)
-        state.scenes[scene_name].param4 = value
-        apply_bundle()
-        redraw()
-    end)
-end
-
-local function add_params()
-    params:add_separator("fadddddddder")
-    params:add_control("xfade", "Crossfade", pct_spec)
-    params:set("xfade", state.xfade)
-    params:set_action("xfade", function(value)
-        state.xfade = value
-        apply_bundle()
-        redraw()
-    end)
-
-    add_scene_params("A")
-    add_scene_params("B")
-end
-
 -- ---------------------------------------------------------------------------
--- Navigation
+-- Navigation / Editing
 -- ---------------------------------------------------------------------------
 
 local function current_page()
     return pages[state.page_index]
 end
 
-local function scene_for_page(page)
-    if page == "scene_a" then
-        return "A"
-    elseif page == "scene_b" then
-        return "B"
-    end
+local function side_for_page(page)
+    if page == "scene_a" then return "A" end
+    if page == "scene_b" then return "B" end
 end
 
 local function change_page(delta)
     state.page_index = clamp(state.page_index + delta, 1, #pages)
-    state.cursor     = 1
+    state.cursor = 1
 end
 
-local function adjust_scene(scene_name, d)
-    local scene = state.scenes[scene_name]
-    local prefix = scene_param_prefix(scene_name)
+local function set_slot(side, slot)
+    state.slots[side] = clamp(slot, 1, NUM_SCENES)
+    state.cursor = 1
+    apply_bundle()
+    save_bank()
+end
+
+local function adjust_scene(side, d)
+    local scene = scene_for_side(side)
+    local values = values_for_scene(scene)
+
     if state.cursor == 1 then
-        local idx    = clamp(effect_index_map[scene.effect] + d, 1, #effect_order)
-        params:set(prefix .. "_effect", idx)
+        local idx = clamp(effect_index_map[scene.effect] + d, 1, #effect_order)
+        scene.effect = effect_order[idx]
+        state.cursor = clamp(state.cursor, 1, cursor_max_for_scene(scene))
     elseif state.cursor == 2 then
-        params:set(prefix .. "_amount", clamp(scene.amount + d * 0.02, 0, 1))
+        values.amount = clamp(values.amount + d * 0.02, 0, 1)
     elseif state.cursor == 3 then
-        params:set(prefix .. "_param1", clamp(scene.param1 + d * 0.02, 0, 1))
+        values.param1 = clamp(values.param1 + d * 0.02, 0, 1)
     elseif state.cursor == 4 then
-        params:set(prefix .. "_param2", clamp(scene.param2 + d * 0.02, 0, 1))
+        values.param2 = clamp(values.param2 + d * 0.02, 0, 1)
     elseif state.cursor == 5 then
-        params:set(prefix .. "_param3", clamp(scene.param3 + d * 0.02, 0, 1))
+        values.param3 = clamp(values.param3 + d * 0.02, 0, 1)
     else
-        params:set(prefix .. "_param4", clamp(scene.param4 + d * 0.02, 0, 1))
+        values.param4 = clamp(values.param4 + d * 0.02, 0, 1)
     end
-end
 
-cursor_max_for_scene = function(scene)
-    return 2 + (effect_param_counts[scene.effect] or 4)
+    apply_bundle()
+    save_bank()
 end
 
 -- ---------------------------------------------------------------------------
--- Drawing helpers
+-- Drawing
 -- ---------------------------------------------------------------------------
-
-local function draw_header(title)
-    screen.level(5)
-    screen.move(4, 8)
-    screen.text("fadddddddder")
-    screen.move(124, 8)
-    screen.text_right(title)
-end
-
-local function draw_row(y, selected, label, value)
-    screen.level(selected and 15 or 4)
-    screen.move(6, y); screen.text(label)
-    screen.move(122, y); screen.text_right(value)
-end
-
-local function draw_crossfader(y)
-    local left_x   = 20
-    local right_x  = 108
-    local marker_x = linlin(0, 1, left_x, right_x, state.xfade)
-
-    screen.level(3)
-    screen.rect(left_x, y - 5, right_x - left_x, 10)
-    screen.stroke()
-
-    screen.level(6)
-    screen.move(left_x + 4, y)
-    screen.line(right_x - 4, y)
-    screen.stroke()
-
-    screen.level(15)
-    screen.move(marker_x, y - 11)
-    screen.line(marker_x, y + 11)
-    screen.stroke()
-
-    screen.level(6)
-    screen.move(left_x, y + 16); screen.text("A")
-    screen.move(right_x, y + 16); screen.text_right("B")
-end
 
 local function pct(v)
     return string.format("%d%%", math.floor(v * 100 + 0.5))
@@ -278,41 +257,74 @@ local function short_pct(v)
     return string.format("%02d", math.floor(v * 99 + 0.5))
 end
 
-local function draw_perform_page()
-    draw_header(page_labels.perform)
+local function draw_header(title)
+    screen.level(5)
+    screen.move(4, 8); screen.text("fadddddddder")
+    screen.move(124, 8); screen.text_right(title)
+end
 
+local function draw_row(y, selected, label, value)
+    screen.level(selected and 15 or 4)
+    screen.move(6, y); screen.text(label)
+    screen.move(122, y); screen.text_right(value)
+end
+
+local function draw_crossfader(y)
+    local left_x = 20
+    local right_x = 108
+    local marker_x = linlin(0, 1, left_x, right_x, state.xfade)
+
+    screen.level(3)
+    screen.rect(left_x, y - 5, right_x - left_x, 10); screen.stroke()
+    screen.level(6)
+    screen.move(left_x + 4, y); screen.line(right_x - 4, y); screen.stroke()
+    screen.level(15)
+    screen.move(marker_x, y - 11); screen.line(marker_x, y + 11); screen.stroke()
+    screen.level(6)
+    screen.move(left_x, y + 16); screen.text(slot_label("A"))
+    screen.move(right_x, y + 16); screen.text_right(slot_label("B"))
+end
+
+local function draw_perform_page()
+    local scene_a = scene_for_side("A")
+    local scene_b = scene_for_side("B")
+    local values_a = values_for_scene(scene_a)
+    local values_b = values_for_scene(scene_b)
+
+    draw_header(page_labels.perform)
     draw_crossfader(32)
 
     screen.level(15)
-    screen.move(6, 55); screen.text(effect_labels[state.scenes.A.effect])
-    screen.move(122, 55); screen.text_right(effect_labels[state.scenes.B.effect])
+    screen.move(6, 55); screen.text(effect_labels[scene_a.effect])
+    screen.move(122, 55); screen.text_right(effect_labels[scene_b.effect])
     screen.level(6)
-    screen.move(6, 64); screen.text(pct(state.scenes.A.amount))
-    screen.move(122, 64); screen.text_right(pct(state.scenes.B.amount))
+    screen.move(6, 64); screen.text(pct(values_a.amount))
+    screen.move(122, 64); screen.text_right(pct(values_b.amount))
 end
 
-local function draw_scene_page(scene_name)
-    local scene = state.scenes[scene_name]
+local function draw_scene_page(side)
+    local scene = scene_for_side(side)
+    local values = values_for_scene(scene)
     local param_labels = effect_params[scene.effect]
-    draw_header(page_labels[current_page()])
+    local title = string.format("%s %02d", page_labels[current_page()], state.slots[side])
 
+    draw_header(title)
     draw_row(18, state.cursor == 1, "effect", effect_labels[scene.effect])
-    draw_row(28, state.cursor == 2, "amount", pct(scene.amount))
-    draw_row(38, state.cursor == 3, param_labels[1], pct(scene.param1))
-    draw_row(48, state.cursor == 4, param_labels[2], pct(scene.param2))
+    draw_row(28, state.cursor == 2, "amount", pct(values.amount))
+    draw_row(38, state.cursor == 3, param_labels[1], pct(values.param1))
+    draw_row(48, state.cursor == 4, param_labels[2], pct(values.param2))
     if (effect_param_counts[scene.effect] or 4) > 2 then
         screen.level(state.cursor == 5 and 15 or 4)
         screen.move(6, 62); screen.text(param_labels[3])
-        screen.move(48, 62); screen.text(short_pct(scene.param3))
+        screen.move(48, 62); screen.text(short_pct(values.param3))
         screen.level(state.cursor == 6 and 15 or 4)
         screen.move(74, 62); screen.text(param_labels[4])
-        screen.move(122, 62); screen.text_right(short_pct(scene.param4))
+        screen.move(122, 62); screen.text_right(short_pct(values.param4))
     end
-
 end
 
 -- ---------------------------------------------------------------------------
--- Norns lifecycle
+-- Norns Lifecycle
 -- ---------------------------------------------------------------------------
 
 function init()
@@ -320,15 +332,8 @@ function init()
     audio.level_dac(1.0)
     audio.level_monitor(1.0)
 
-    add_params()
-    params:bang()
-    set_scene_from_params("A")
-    set_scene_from_params("B")
+    load_bank()
 
-    -- The engine's alloc (SynthDef compilation + Synth instantiation) runs
-    -- asynchronously. Sending engine commands immediately in init() races
-    -- against alloc completing and will hit nil synth references in SC.
-    -- A short clock.sleep gives alloc time to finish before we push state.
     clock.run(function()
         clock.sleep(0.5)
         engine_ready = true
@@ -338,49 +343,70 @@ function init()
         apply_bundle()
     end)
 
-    redraw_metro       = metro.init()
-    redraw_metro.time  = 1 / 15
+    redraw_metro = metro.init()
+    redraw_metro.time = 1 / 15
     redraw_metro.event = redraw
     redraw_metro:start()
 end
 
 function enc(n, d)
     local page = current_page()
+
     if n == 1 then
         change_page(d > 0 and 1 or -1)
     elseif n == 2 then
-        if page ~= "perform" then
-            local scene_name = scene_for_page(page)
-            local scene = state.scenes[scene_name]
-            state.cursor = clamp(state.cursor + d, 1, cursor_max_for_scene(scene))
+        if page == "perform" then
+            if k1_down then
+                k1_used_as_modifier = true
+                set_slot("B", state.slots.B + d)
+            else
+                set_slot("A", state.slots.A + d)
+            end
+        else
+            local side = side_for_page(page)
+            state.cursor = clamp(state.cursor + d, 1, cursor_max_for_scene(scene_for_side(side)))
         end
     elseif n == 3 then
         if page == "perform" then
-            params:set("xfade", clamp(state.xfade + d * 0.02, 0, 1))
+            state.xfade = clamp(state.xfade + d * 0.02, 0, 1)
+            apply_bundle()
+            save_bank()
         else
-            local scene_name = scene_for_page(page)
-            if scene_name then adjust_scene(scene_name, d) end
+            local side = side_for_page(page)
+            if side then adjust_scene(side, d) end
         end
     end
+
     redraw()
 end
 
 function key(n, z)
-    if z == 0 then return end
     local page = current_page()
 
-    if n == 2 then
-        change_page(-1)
-    elseif n == 3 then
-        change_page(1)
-    elseif n == 1 then
-        if page == "perform" then
-            params:set("xfade", 0.5)
-        elseif page == "scene_a" then
-            params:set("xfade", 0.0)
-        elseif page == "scene_b" then
-            params:set("xfade", 1.0)
+    if n == 1 then
+        if z == 1 then
+            k1_down = true
+            k1_used_as_modifier = false
+        else
+            k1_down = false
+            if page == "perform" and not k1_used_as_modifier then
+                state.xfade = 0.5
+                apply_bundle()
+                save_bank()
+            elseif page == "scene_a" and not k1_used_as_modifier then
+                state.xfade = 0.0
+                apply_bundle()
+                save_bank()
+            elseif page == "scene_b" and not k1_used_as_modifier then
+                state.xfade = 1.0
+                apply_bundle()
+                save_bank()
+            end
         end
+    elseif z == 1 and n == 2 then
+        change_page(-1)
+    elseif z == 1 and n == 3 then
+        change_page(1)
     end
 
     redraw()
@@ -400,6 +426,7 @@ function redraw()
 end
 
 function cleanup()
+    save_bank()
     if redraw_metro ~= nil then
         redraw_metro:stop()
         redraw_metro = nil

@@ -2,17 +2,16 @@
 
 An octo-inspired norns scene fader for live input.
 
-`fadddddddder` stores two scene states (`A` and `B`) and morphs between them with a single encoder while a dedicated SuperCollider engine handles the live audio path.
+`fadddddddder` stores a 16-slot scene bank, assigns two slots to `A` and `B`, and morphs between them while a dedicated SuperCollider engine handles the live audio path.
 
 ## Status
 
 First pass. The core workflow is there:
 
-- assign an effect macro to scene `A`
-- assign an effect macro to scene `B`
-- set each scene amount plus effect-specific macro parameters
+- assign scene slots to fader side `A` and `B`
+- set each slot's macro effect, amount, and effect-specific macro parameters
 - sweep the crossfader between them on the performance page
-- store and recall scene settings with norns psets
+- store and recall the 16-slot scene bank automatically
 
 This version is intentionally small, but the live DSP now runs in a custom SuperCollider engine instead of `softcut` transport tricks.
 
@@ -35,8 +34,10 @@ This version is intentionally small, but the live DSP now runs in a custom Super
 
 ### Perform page
 
+- `E2`: select `A` scene slot
 - `E3`: crossfade from `A` to `B`
-- `K1`: snap to center
+- hold `K1` + `E2`: select `B` scene slot
+- tap `K1`: snap to center
 
 ### Scene pages
 
@@ -46,20 +47,20 @@ This version is intentionally small, but the live DSP now runs in a custom Super
 
 ## Pages
 
-- `perform`: main `[A] -|- [B]` crossfader view
-- `scene A`: choose effect, amount, and macro parameters for scene `A`
-- `scene B`: choose effect, amount, and macro parameters for scene `B`
+- `perform`: select scene slots and crossfade between `A` and `B`
+- `scene A`: edit the scene slot assigned to `A`
+- `scene B`: edit the scene slot assigned to `B`
 
 ## Audio Model
 
 This is a live-input SuperCollider processor with a scene crossfader.
 
 - incoming audio is processed by a custom engine in `lib/Engine_Fadddddddder.sc`
-- scene `A` and scene `B` each run their own macro effect, amount, and four persisted macro values
+- the selected `A` and `B` slots each run their own macro effect, amount, and four persisted macro values
 - the engine crossfades between those scene outputs in real time
 - all effect parameters are smoothed in SuperCollider to reduce zipper noise and clicks
-- all effects are generated in the engine using classes in `lib/fx/`
-- crossfade, scene effects, scene amounts, and macro values are backed by norns params for pset persistence
+- the live engine is self-contained in `lib/Engine_Fadddddddder.sc`; `lib/fx/` contains exploratory/reference FX classes
+- the 16-slot scene bank is saved to `data/fadddddddder/scene_bank.data`
 
 That means simple filter moves no longer depend on `softcut` head jumps, which was the main source of the clicking and accidental short-loop behavior.
 
@@ -108,13 +109,14 @@ fadddddddder/
 
 ## Persistence
 
-Scene settings are stored as norns params:
+Scene settings are stored automatically in `data/fadddddddder/scene_bank.data`:
 
 - crossfade
-- scene A effect, amount, macro 1, macro 2, macro 3, macro 4
-- scene B effect, amount, macro 1, macro 2, macro 3, macro 4
+- selected `A` and `B` slot numbers
+- all 16 scene slots
+- per-effect values inside each slot, so changing effects recalls that effect's own amount and macros
 
-Use the normal norns pset workflow to save and recall these values.
+The bank saves whenever you edit slots, scene values, or the crossfader, and again on cleanup.
 
 ## Likely Next Steps
 
