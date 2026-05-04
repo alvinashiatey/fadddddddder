@@ -15,11 +15,39 @@ Engine_Fadddddddder : CroneEngine {
       sceneAEffect = 0, sceneAAmount = 0, sceneAParam1 = 0.5, sceneAParam2 = 0.5, sceneAParam3 = 0.5, sceneAParam4 = 0.5,
       sceneBEffect = 0, sceneBAmount = 0, sceneBParam1 = 0.5, sceneBParam2 = 0.5, sceneBParam3 = 0.5, sceneBParam4 = 0.5
     |
-      var dry, sig;
+      var dry, sceneA, sceneB, sig,
+      aThru, aFilter, aEQ, aMod, aSpace, aTexture, aDelay,
+      bThru, bFilter, bEQ, bMod, bSpace, bTexture, bDelay,
+      aEffect, bEffect, aLeft, aRight, bLeft, bRight;
       dry = [In.ar(inL), In.ar(inR)] * Lag.kr(inputAmp, 0.05);
 
-      // Dry-only recovery engine. Do not add DSP here until the SC log is known.
-      sig = dry;
+      aEffect = Lag.kr(sceneAEffect.clip(0, 6), 0.05);
+      bEffect = Lag.kr(sceneBEffect.clip(0, 6), 0.05);
+
+      aThru = FaddThru.ar(dry, sceneAAmount, sceneAParam1, sceneAParam2);
+      aFilter = FaddMacroFilter.ar(dry, sceneAAmount, sceneAParam1, sceneAParam2, sceneAParam3, sceneAParam4);
+      aEQ = FaddMacroEQ.ar(dry, sceneAAmount, sceneAParam1, sceneAParam2, sceneAParam3, sceneAParam4);
+      aMod = FaddMacroMod.ar(dry, sceneAAmount, sceneAParam1, sceneAParam2, sceneAParam3, sceneAParam4);
+      aSpace = FaddMacroSpace.ar(dry, sceneAAmount, sceneAParam1, sceneAParam2, sceneAParam3, sceneAParam4);
+      aTexture = FaddMacroTexture.ar(dry, sceneAAmount, sceneAParam1, sceneAParam2, sceneAParam3, sceneAParam4);
+      aDelay = FaddMacroDelay.ar(dry, sceneAAmount, sceneAParam1, sceneAParam2, sceneAParam3, sceneAParam4);
+
+      bThru = FaddThru.ar(dry, sceneBAmount, sceneBParam1, sceneBParam2);
+      bFilter = FaddMacroFilter.ar(dry, sceneBAmount, sceneBParam1, sceneBParam2, sceneBParam3, sceneBParam4);
+      bEQ = FaddMacroEQ.ar(dry, sceneBAmount, sceneBParam1, sceneBParam2, sceneBParam3, sceneBParam4);
+      bMod = FaddMacroMod.ar(dry, sceneBAmount, sceneBParam1, sceneBParam2, sceneBParam3, sceneBParam4);
+      bSpace = FaddMacroSpace.ar(dry, sceneBAmount, sceneBParam1, sceneBParam2, sceneBParam3, sceneBParam4);
+      bTexture = FaddMacroTexture.ar(dry, sceneBAmount, sceneBParam1, sceneBParam2, sceneBParam3, sceneBParam4);
+      bDelay = FaddMacroDelay.ar(dry, sceneBAmount, sceneBParam1, sceneBParam2, sceneBParam3, sceneBParam4);
+
+      aLeft = SelectX.ar(aEffect, [aThru[0], aFilter[0], aEQ[0], aMod[0], aSpace[0], aTexture[0], aDelay[0]]);
+      aRight = SelectX.ar(aEffect, [aThru[1], aFilter[1], aEQ[1], aMod[1], aSpace[1], aTexture[1], aDelay[1]]);
+      bLeft = SelectX.ar(bEffect, [bThru[0], bFilter[0], bEQ[0], bMod[0], bSpace[0], bTexture[0], bDelay[0]]);
+      bRight = SelectX.ar(bEffect, [bThru[1], bFilter[1], bEQ[1], bMod[1], bSpace[1], bTexture[1], bDelay[1]]);
+
+      sceneA = [aLeft, aRight];
+      sceneB = [bLeft, bRight];
+      sig = XFade2.ar(sceneA, sceneB, (Lag.kr(xfade.clip(0, 1), 0.05) * 2) - 1);
       sig = sig * Lag.kr(outputAmp, 0.05);
       Out.ar(out, LeakDC.ar(Limiter.ar(sig, 0.98)));
     }).add;
