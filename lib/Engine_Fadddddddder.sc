@@ -1,11 +1,5 @@
 Engine_Fadddddddder : CroneEngine {
-  var inputBus;
-  var sceneABus;
-  var sceneBBus;
-  var inputStage;
-  var sceneAStage;
-  var sceneBStage;
-  var mixStage;
+  var mainStage;
   var inputAmp = 1;
   var outputAmp = 1;
   var numInputChannels = 2;
@@ -15,101 +9,45 @@ Engine_Fadddddddder : CroneEngine {
   }
 
   alloc {
-    inputBus = Bus.audio(context.server, 2);
-    sceneABus = Bus.audio(context.server, 2);
-    sceneBBus = Bus.audio(context.server, 2);
+    SynthDef(\fadddddddderMain, { |
+      inL = 0, inR = 1, out = 0,
+      inputAmp = 1, outputAmp = 1, xfade = 0,
+      sceneAEffect = 0, sceneAAmount = 0, sceneAParam1 = 0.5, sceneAParam2 = 0.5, sceneAParam3 = 0.5, sceneAParam4 = 0.5,
+      sceneBEffect = 0, sceneBAmount = 0, sceneBParam1 = 0.5, sceneBParam2 = 0.5, sceneBParam3 = 0.5, sceneBParam4 = 0.5
+    |
+      var dry, sig;
+      dry = [In.ar(inL), In.ar(inR)] * Lag.kr(inputAmp, 0.05);
 
-    SynthDef(\fadddddddderInput, { |inL = 0, inR = 1, out = 0, amp = 1|
-      var sig;
-      sig = [In.ar(inL), In.ar(inR)] * Lag.kr(amp, 0.05);
-      Out.ar(out, LeakDC.ar(sig));
-    }).add;
-
-    SynthDef(\fadddddddderScene, { |inBus = 0, out = 0, effect = 0, amount = 0, param1 = 0.5, param2 = 0.5, param3 = 0.5, param4 = 0.5|
-      var dry, a, p1, p2, p3, p4, eff, thru, filter, eq, mod, space, texture, delay, left, right, sig;
-      dry = In.ar(inBus, 2);
-      a = Lag.kr(amount.clip(0, 1), 0.08);
-      p1 = Lag.kr(param1.clip(0, 1), 0.08);
-      p2 = Lag.kr(param2.clip(0, 1), 0.08);
-      p3 = Lag.kr(param3.clip(0, 1), 0.08);
-      p4 = Lag.kr(param4.clip(0, 1), 0.08);
-      eff = Lag.kr(effect.clip(0, 6), 0.05);
-
-      thru = FaddThru.ar(dry, a, p1, p2);
-      filter = FaddMacroFilter.ar(dry, a, p1, p2, p3, p4);
-      eq = FaddMacroEQ.ar(dry, a, p1, p2, p3, p4);
-      mod = FaddMacroMod.ar(dry, a, p1, p2, p3, p4);
-      space = FaddMacroSpace.ar(dry, a, p1, p2, p3, p4);
-      texture = FaddMacroTexture.ar(dry, a, p1, p2, p3, p4);
-      delay = FaddMacroDelay.ar(dry, a, p1, p2, p3, p4);
-
-      left = SelectX.ar(eff, [thru[0], filter[0], eq[0], mod[0], space[0], texture[0], delay[0]]);
-      right = SelectX.ar(eff, [thru[1], filter[1], eq[1], mod[1], space[1], texture[1], delay[1]]);
-      sig = LeakDC.ar(Limiter.ar([left, right], 0.98));
-      Out.ar(out, sig);
-    }).add;
-
-    SynthDef(\fadddddddderMix, { |inABus = 0, inBBus = 2, out = 0, xfade = 0.5, amp = 1|
-      var sceneA, sceneB, pos, sig;
-      sceneA = In.ar(inABus, 2);
-      sceneB = In.ar(inBBus, 2);
-      pos = Lag.kr(xfade.clip(0, 1), 0.05);
-      sig = XFade2.ar(sceneA, sceneB, (pos * 2) - 1) * Lag.kr(amp, 0.05);
+      // Recovery build: prove the norns input -> engine -> output path first.
+      // FX controls stay wired so Lua/psets do not break while DSP is reintroduced.
+      sig = dry * Lag.kr(outputAmp, 0.05);
       Out.ar(out, LeakDC.ar(Limiter.ar(sig, 0.98)));
     }).add;
 
     context.server.sync;
 
-    inputStage = Synth.new(\fadddddddderInput, [
+    mainStage = Synth.new(\fadddddddderMain, [
       \inL, this.getInL,
       \inR, this.getInR,
-      \out, inputBus.index,
-      \amp, inputAmp
+      \out, context.out_b.index,
+      \inputAmp, inputAmp,
+      \outputAmp, outputAmp,
+      \xfade, 0
     ], context.xg);
 
-    sceneAStage = Synth.new(\fadddddddderScene, [
-      \inBus, inputBus.index,
-      \out, sceneABus.index,
-      \effect, 0,
-      \amount, 0,
-      \param1, 0.5,
-      \param2, 0.5,
-      \param3, 0.5,
-      \param4, 0.5
-    ], inputStage, \addAfter);
-
-    sceneBStage = Synth.new(\fadddddddderScene, [
-      \inBus, inputBus.index,
-      \out, sceneBBus.index,
-      \effect, 3,
-      \amount, 0.55,
-      \param1, 0.42,
-      \param2, 0.65,
-      \param3, 0,
-      \param4, 0.45
-    ], sceneAStage, \addAfter);
-
-    mixStage = Synth.new(\fadddddddderMix, [
-      \inABus, sceneABus.index,
-      \inBBus, sceneBBus.index,
-      \out, context.out_b.index,
-      \xfade, 0,
-      \amp, outputAmp
-    ], sceneBStage, \addAfter);
-
-    this.addCommand("set_scene_a_effect", "f", { |msg| sceneAStage.set(\effect, msg[1]); });
-    this.addCommand("set_scene_a_amount", "f", { |msg| sceneAStage.set(\amount, msg[1]); });
-    this.addCommand("set_scene_a_param1", "f", { |msg| sceneAStage.set(\param1, msg[1]); });
-    this.addCommand("set_scene_a_param2", "f", { |msg| sceneAStage.set(\param2, msg[1]); });
-    this.addCommand("set_scene_a_param3", "f", { |msg| sceneAStage.set(\param3, msg[1]); });
-    this.addCommand("set_scene_a_param4", "f", { |msg| sceneAStage.set(\param4, msg[1]); });
-    this.addCommand("set_scene_b_effect", "f", { |msg| sceneBStage.set(\effect, msg[1]); });
-    this.addCommand("set_scene_b_amount", "f", { |msg| sceneBStage.set(\amount, msg[1]); });
-    this.addCommand("set_scene_b_param1", "f", { |msg| sceneBStage.set(\param1, msg[1]); });
-    this.addCommand("set_scene_b_param2", "f", { |msg| sceneBStage.set(\param2, msg[1]); });
-    this.addCommand("set_scene_b_param3", "f", { |msg| sceneBStage.set(\param3, msg[1]); });
-    this.addCommand("set_scene_b_param4", "f", { |msg| sceneBStage.set(\param4, msg[1]); });
-    this.addCommand("set_xfade", "f", { |msg| mixStage.set(\xfade, msg[1]); });
+    this.addCommand("set_scene_a_effect", "f", { |msg| mainStage.set(\sceneAEffect, msg[1]); });
+    this.addCommand("set_scene_a_amount", "f", { |msg| mainStage.set(\sceneAAmount, msg[1]); });
+    this.addCommand("set_scene_a_param1", "f", { |msg| mainStage.set(\sceneAParam1, msg[1]); });
+    this.addCommand("set_scene_a_param2", "f", { |msg| mainStage.set(\sceneAParam2, msg[1]); });
+    this.addCommand("set_scene_a_param3", "f", { |msg| mainStage.set(\sceneAParam3, msg[1]); });
+    this.addCommand("set_scene_a_param4", "f", { |msg| mainStage.set(\sceneAParam4, msg[1]); });
+    this.addCommand("set_scene_b_effect", "f", { |msg| mainStage.set(\sceneBEffect, msg[1]); });
+    this.addCommand("set_scene_b_amount", "f", { |msg| mainStage.set(\sceneBAmount, msg[1]); });
+    this.addCommand("set_scene_b_param1", "f", { |msg| mainStage.set(\sceneBParam1, msg[1]); });
+    this.addCommand("set_scene_b_param2", "f", { |msg| mainStage.set(\sceneBParam2, msg[1]); });
+    this.addCommand("set_scene_b_param3", "f", { |msg| mainStage.set(\sceneBParam3, msg[1]); });
+    this.addCommand("set_scene_b_param4", "f", { |msg| mainStage.set(\sceneBParam4, msg[1]); });
+    this.addCommand("set_xfade", "f", { |msg| mainStage.set(\xfade, msg[1]); });
     this.addCommand("set_input_amp", "f", { |msg| this.setInputAmp(msg[1]); });
     this.addCommand("set_output_amp", "f", { |msg| this.setOutputAmp(msg[1]); });
     this.addCommand("set_num_input_channels", "i", { |msg| this.setNumInputChannels(msg[1]); });
@@ -129,26 +67,20 @@ Engine_Fadddddddder : CroneEngine {
 
   setNumInputChannels { |numChannelsArg|
     numInputChannels = numChannelsArg;
-    inputStage.set(\inL, this.getInL, \inR, this.getInR);
+    mainStage.set(\inL, this.getInL, \inR, this.getInR);
   }
 
   setInputAmp { |amp|
     inputAmp = amp;
-    inputStage.set(\amp, inputAmp);
+    mainStage.set(\inputAmp, inputAmp);
   }
 
   setOutputAmp { |amp|
     outputAmp = amp;
-    mixStage.set(\amp, outputAmp);
+    mainStage.set(\outputAmp, outputAmp);
   }
 
   free {
-    mixStage.free;
-    sceneBStage.free;
-    sceneAStage.free;
-    inputStage.free;
-    sceneBBus.free;
-    sceneABus.free;
-    inputBus.free;
+    mainStage.free;
   }
 }
