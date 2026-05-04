@@ -15,22 +15,11 @@ Engine_Fadddddddder : CroneEngine {
       sceneAEffect = 0, sceneAAmount = 0, sceneAParam1 = 0.5, sceneAParam2 = 0.5, sceneAParam3 = 0.5, sceneAParam4 = 0.5,
       sceneBEffect = 0, sceneBAmount = 0, sceneBParam1 = 0.5, sceneBParam2 = 0.5, sceneBParam3 = 0.5, sceneBParam4 = 0.5
     |
-      var dry, aAmount, bAmount, aCutoff, bCutoff, aWet, bWet, sceneA, sceneB, sig;
+      var dry, sig;
       dry = [In.ar(inL), In.ar(inR)] * Lag.kr(inputAmp, 0.05);
 
-      // Conservative recovery DSP: only build known-safe filters in the graph.
-      // Macro classes remain on disk, but are not referenced here until hardware logs confirm them.
-      aAmount = Lag.kr(sceneAAmount.clip(0, 1), 0.08);
-      bAmount = Lag.kr(sceneBAmount.clip(0, 1), 0.08);
-      aCutoff = LinExp.kr(Lag.kr(sceneAParam1.clip(0, 1), 0.08), 0, 1, 80, 12000);
-      bCutoff = LinExp.kr(Lag.kr(sceneBParam1.clip(0, 1), 0.08), 0, 1, 80, 12000);
-
-      aWet = RLPF.ar(dry, aCutoff, 0.35);
-      bWet = RLPF.ar(dry, bCutoff, 0.35);
-
-      sceneA = XFade2.ar(dry, aWet, (aAmount * 2) - 1);
-      sceneB = XFade2.ar(dry, bWet, (bAmount * 2) - 1);
-      sig = XFade2.ar(sceneA, sceneB, (Lag.kr(xfade.clip(0, 1), 0.05) * 2) - 1);
+      // Dry-only recovery engine. Do not add DSP here until the SC log is known.
+      sig = dry;
       sig = sig * Lag.kr(outputAmp, 0.05);
       Out.ar(out, LeakDC.ar(Limiter.ar(sig, 0.98)));
     }).add;
