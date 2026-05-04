@@ -316,6 +316,10 @@ end
 -- ---------------------------------------------------------------------------
 
 function init()
+    audio.level_adc(1.0)
+    audio.level_dac(1.0)
+    audio.level_monitor(0.0)
+
     add_params()
     params:bang()
     set_scene_from_params("A")

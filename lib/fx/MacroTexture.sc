@@ -1,13 +1,11 @@
 FaddMacroTexture {
   *ar { |dry, amount, colorMacro, damageMacro, typeMacro, motionMacro|
-    var comb, comp, rate, held, bits, steps, lofi, ring, freq, mod, left, right, wet;
+    var comb, comp, rate, bits, lofi, ring, freq, mod, left, right, wet;
     comb = CombC.ar(dry, 0.12, LinExp.kr(colorMacro, 0, 1, 0.004, 0.09), LinLin.kr(damageMacro, 0, 1, 0.2, 4.5));
     comp = Compander.ar(dry, dry, LinLin.kr(colorMacro, 0, 1, 0.08, 0.6), 1, LinLin.kr(damageMacro, 0, 1, 0.5, 0.08), 0.01, 0.12) * LinLin.kr(damageMacro, 0, 1, 1.0, 1.8);
     rate = LinExp.kr(colorMacro, 0, 1, 900, 44100);
-    held = Latch.ar(dry, Impulse.ar(rate));
     bits = LinLin.kr(damageMacro, 0, 1, 12, 3);
-    steps = 2.pow(bits);
-    lofi = ((held * steps).round / steps).tanh;
+    lofi = Decimator.ar((dry * LinLin.kr(damageMacro, 0, 1, 1.0, 4.0)).tanh, rate, bits);
     freq = LinExp.kr(colorMacro, 0, 1, 18, 2600);
     mod = SinOsc.ar(freq + SinOsc.kr(LinLin.kr(motionMacro, 0, 1, 0.1, 8), 0, freq * 0.15));
     ring = dry * mod;
