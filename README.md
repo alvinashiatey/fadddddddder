@@ -2,16 +2,16 @@
 
 An octo-inspired norns scene fader for live input.
 
-`fadddddddder` stores a 16-slot scene bank, assigns two slots to `A` and `B`, and morphs between them while a dedicated SuperCollider engine handles the live audio path.
+`fadddddddder` stores two independent 16-slot scene banks, assigns one `A` slot and one `B` slot, and morphs between them while a dedicated SuperCollider engine handles the live audio path.
 
 ## Status
 
 First pass. The core workflow is there:
 
-- assign scene slots to fader side `A` and `B`
+- assign independent scene slots to fader side `A` and `B`
 - set each slot's macro effect, amount, and effect-specific macro parameters
 - sweep the crossfader between them on the performance page
-- store and recall the 16-slot scene bank automatically
+- store and recall both 16-slot scene banks automatically
 
 This version is intentionally small, but the live DSP now runs in a custom SuperCollider engine instead of `softcut` transport tricks.
 
@@ -56,11 +56,11 @@ This version is intentionally small, but the live DSP now runs in a custom Super
 This is a live-input SuperCollider processor with a scene crossfader.
 
 - incoming audio is processed by a custom engine in `lib/Engine_Fadddddddder.sc`
-- the selected `A` and `B` slots each run their own macro effect, amount, and four persisted macro values
+- the selected `A` and `B` slots each run their own independent macro effect, amount, and four persisted macro values
 - the engine crossfades between those scene outputs in real time
 - all effect parameters are smoothed in SuperCollider to reduce zipper noise and clicks
 - the live engine is self-contained in `lib/Engine_Fadddddddder.sc`; `lib/fx/` contains exploratory/reference FX classes
-- the 16-slot scene bank is saved to `data/fadddddddder/scene_bank.data`
+- both 16-slot scene banks are saved to `data/fadddddddder/scene_bank.data`
 
 That means simple filter moves no longer depend on `softcut` head jumps, which was the main source of the clicking and accidental short-loop behavior.
 
@@ -113,7 +113,7 @@ Scene settings are stored automatically in `data/fadddddddder/scene_bank.data`:
 
 - crossfade
 - selected `A` and `B` slot numbers
-- all 16 scene slots
+- all 16 `A` scene slots and all 16 `B` scene slots
 - per-effect values inside each slot, so changing effects recalls that effect's own amount and macros
 
 The bank saves whenever you edit slots, scene values, or the crossfader, and again on cleanup.

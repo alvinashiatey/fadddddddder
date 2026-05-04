@@ -68,8 +68,8 @@ local state = {
     page_index = 1,
     cursor = 1,
     xfade = 0.0,
-    slots = { A = 1, B = 9 },
-    bank = {},
+    slots = { A = 1, B = 1 },
+    bank = { A = {}, B = {} },
 }
 
 -- ---------------------------------------------------------------------------
@@ -92,17 +92,26 @@ local function default_effect_values()
     return values
 end
 
+local sanitize_slot
+
 local function new_scene_slot(index)
-    local effect = index == 9 and "delay" or "thru"
+    local effect = index == 1 and "delay" or "thru"
     return {
         effect = effect,
         values = default_effect_values(),
     }
 end
 
-local function sanitize_slot(slot, index)
+local function clone_slot(slot, index)
+    slot = sanitize_slot(slot, index)
+    local cloned = { effect = slot.effect, values = {} }
+    for _, effect in ipairs(effect_order) do cloned.values[effect] = clone_values(slot.values[effect]) end
+    return cloned
+end
+
+sanitize_slot = function(slot, index)
     if type(slot) ~= "table" then return new_scene_slot(index) end
-    if effect_index_map[slot.effect] == nil then slot.effect = index == 9 and "delay" or "thru" end
+    if effect_index_map[slot.effect] == nil then slot.effect = index == 1 and "delay" or "thru" end
     if type(slot.values) ~= "table" then slot.values = {} end
     for _, effect in ipairs(effect_order) do
         local defaults = default_values[effect]
@@ -121,28 +130,25 @@ local function sanitize_slot(slot, index)
 end
 
 local function ensure_bank()
-    for i = 1, NUM_SCENES do state.bank[i] = sanitize_slot(state.bank[i], i) end
-    state.slots.A = clamp(tonumber(state.slots.A) or 1, 1, NUM_SCENES)
-    state.slots.B = clamp(tonumber(state.slots.B) or 9, 1, NUM_SCENES)
-    if state.slots.A == state.slots.B then
-        state.slots.B = (state.slots.A % NUM_SCENES) + 1
-    end
-    state.xfade = clamp(tonumber(state.xfade) or 0, 0, 1)
-end
+    if type(state.bank) ~= "table" then state.bank = { A = {}, B = {} } end
 
-local function exclusive_slot(side, slot, delta)
-    local other = side == "A" and "B" or "A"
-    local direction = delta == nil and 1 or (delta < 0 and -1 or 1)
-    slot = clamp(slot, 1, NUM_SCENES)
-
-    if slot == state.slots[other] then
-        slot = slot + direction
-        if slot < 1 or slot > NUM_SCENES then
-            slot = state.slots[other] - direction
+    -- Migrate old shared-bank files by copying the old 1-16 slots into both lanes.
+    if type(state.bank.A) ~= "table" or type(state.bank.B) ~= "table" then
+        local shared_bank = state.bank
+        state.bank = { A = {}, B = {} }
+        for i = 1, NUM_SCENES do
+            state.bank.A[i] = clone_slot(shared_bank[i], i)
+            state.bank.B[i] = clone_slot(shared_bank[i], i)
         end
     end
 
-    return clamp(slot, 1, NUM_SCENES)
+    for i = 1, NUM_SCENES do
+        state.bank.A[i] = sanitize_slot(state.bank.A[i], i)
+        state.bank.B[i] = sanitize_slot(state.bank.B[i], i)
+    end
+    state.slots.A = clamp(tonumber(state.slots.A) or 1, 1, NUM_SCENES)
+    state.slots.B = clamp(tonumber(state.slots.B) or 1, 1, NUM_SCENES)
+    state.xfade = clamp(tonumber(state.xfade) or 0, 0, 1)
 end
 
 local function save_bank()
@@ -163,7 +169,7 @@ local function load_bank()
 end
 
 local function scene_for_side(side)
-    return state.bank[state.slots[side]]
+    return state.bank[side][state.slots[side]]
 end
 
 local function values_for_scene(scene)
@@ -232,8 +238,8 @@ local function change_page(delta)
     state.cursor = 1
 end
 
-local function set_slot(side, slot, delta)
-    state.slots[side] = exclusive_slot(side, slot, delta)
+local function set_slot(side, slot)
+    state.slots[side] = clamp(slot, 1, NUM_SCENES)
     state.cursor = 1
     apply_bundle()
     save_bank()
