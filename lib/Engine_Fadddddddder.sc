@@ -15,38 +15,48 @@ Engine_Fadddddddder : CroneEngine {
       sceneAEffect = 0, sceneAAmount = 0, sceneAParam1 = 0.5, sceneAParam2 = 0.5, sceneAParam3 = 0.5, sceneAParam4 = 0.5,
       sceneBEffect = 0, sceneBAmount = 0, sceneBParam1 = 0.5, sceneBParam2 = 0.5, sceneBParam3 = 0.5, sceneBParam4 = 0.5
     |
-      var dry, sceneA, sceneB, sig,
-      aThru, aFilter, aEQ, aMod, aSpace, aTexture, aDelay,
-      bThru, bFilter, bEQ, bMod, bSpace, bTexture, bDelay,
-      aEffect, bEffect, aLeft, aRight, bLeft, bRight;
+      var dry, sig,
+      aAmt, aP1, aP2, aP3, aP4, aEff, aThru, aFilter, aEq, aMod, aSpace, aTexture, aDelay, aL, aR, sceneA,
+      bAmt, bP1, bP2, bP3, bP4, bEff, bThru, bFilter, bEq, bMod, bSpace, bTexture, bDelay, bL, bR, sceneB;
+
       dry = [In.ar(inL), In.ar(inR)] * Lag.kr(inputAmp, 0.05);
 
-      aEffect = Lag.kr(sceneAEffect.clip(0, 6), 0.05);
-      bEffect = Lag.kr(sceneBEffect.clip(0, 6), 0.05);
+      aAmt = Lag.kr(sceneAAmount.clip(0, 1), 0.08);
+      aP1 = Lag.kr(sceneAParam1.clip(0, 1), 0.08);
+      aP2 = Lag.kr(sceneAParam2.clip(0, 1), 0.08);
+      aP3 = Lag.kr(sceneAParam3.clip(0, 1), 0.08);
+      aP4 = Lag.kr(sceneAParam4.clip(0, 1), 0.08);
+      aEff = Lag.kr(sceneAEffect.clip(0, 6), 0.05);
 
-      aThru = FaddThru.ar(dry, sceneAAmount, sceneAParam1, sceneAParam2);
-      aFilter = FaddMacroFilter.ar(dry, sceneAAmount, sceneAParam1, sceneAParam2, sceneAParam3, sceneAParam4);
-      aEQ = FaddMacroEQ.ar(dry, sceneAAmount, sceneAParam1, sceneAParam2, sceneAParam3, sceneAParam4);
-      aMod = FaddMacroMod.ar(dry, sceneAAmount, sceneAParam1, sceneAParam2, sceneAParam3, sceneAParam4);
-      aSpace = FaddMacroSpace.ar(dry, sceneAAmount, sceneAParam1, sceneAParam2, sceneAParam3, sceneAParam4);
-      aTexture = FaddMacroTexture.ar(dry, sceneAAmount, sceneAParam1, sceneAParam2, sceneAParam3, sceneAParam4);
-      aDelay = FaddMacroDelay.ar(dry, sceneAAmount, sceneAParam1, sceneAParam2, sceneAParam3, sceneAParam4);
+      aThru = dry;
+      aFilter = RLPF.ar(dry, LinExp.kr(aP1, 0, 1, 80, 12000), LinLin.kr(aP2, 0, 1, 0.9, 0.12));
+      aEq = BPeakEQ.ar(dry, LinExp.kr(aP1, 0, 1, 90, 9000), LinExp.kr(aP3, 0, 1, 0.4, 5), LinLin.kr(aP2, 0, 1, -15, 15));
+      aMod = DelayC.ar(dry, 0.06, SinOsc.kr(LinLin.kr(aP1, 0, 1, 0.05, 4), [0, 1.5708], LinLin.kr(aP2, 0, 1, 0.001, 0.018), 0.006));
+      aSpace = FreeVerb2.ar(dry[0], dry[1], 1, LinLin.kr(aP1, 0, 1, 0.15, 0.95), LinLin.kr(aP2, 0, 1, 0.1, 0.85));
+      aTexture = (dry * SinOsc.ar(LinExp.kr(aP1, 0, 1, 18, 2200))).tanh;
+      aDelay = LPF.ar(CombC.ar(dry, 1.2, LinExp.kr(aP1, 0, 1, 0.05, 0.9), LinExp.kr(aP2.clip(0.001, 1), 0.001, 1, 0.25, 8)), LinExp.kr(aP4, 0, 1, 900, 12000));
+      aL = SelectX.ar(aEff, [aThru[0], aFilter[0], aEq[0], aMod[0], aSpace[0], aTexture[0], aDelay[0]]);
+      aR = SelectX.ar(aEff, [aThru[1], aFilter[1], aEq[1], aMod[1], aSpace[1], aTexture[1], aDelay[1]]);
+      sceneA = XFade2.ar(dry, [aL, aR], (aAmt * 2) - 1);
 
-      bThru = FaddThru.ar(dry, sceneBAmount, sceneBParam1, sceneBParam2);
-      bFilter = FaddMacroFilter.ar(dry, sceneBAmount, sceneBParam1, sceneBParam2, sceneBParam3, sceneBParam4);
-      bEQ = FaddMacroEQ.ar(dry, sceneBAmount, sceneBParam1, sceneBParam2, sceneBParam3, sceneBParam4);
-      bMod = FaddMacroMod.ar(dry, sceneBAmount, sceneBParam1, sceneBParam2, sceneBParam3, sceneBParam4);
-      bSpace = FaddMacroSpace.ar(dry, sceneBAmount, sceneBParam1, sceneBParam2, sceneBParam3, sceneBParam4);
-      bTexture = FaddMacroTexture.ar(dry, sceneBAmount, sceneBParam1, sceneBParam2, sceneBParam3, sceneBParam4);
-      bDelay = FaddMacroDelay.ar(dry, sceneBAmount, sceneBParam1, sceneBParam2, sceneBParam3, sceneBParam4);
+      bAmt = Lag.kr(sceneBAmount.clip(0, 1), 0.08);
+      bP1 = Lag.kr(sceneBParam1.clip(0, 1), 0.08);
+      bP2 = Lag.kr(sceneBParam2.clip(0, 1), 0.08);
+      bP3 = Lag.kr(sceneBParam3.clip(0, 1), 0.08);
+      bP4 = Lag.kr(sceneBParam4.clip(0, 1), 0.08);
+      bEff = Lag.kr(sceneBEffect.clip(0, 6), 0.05);
 
-      aLeft = SelectX.ar(aEffect, [aThru[0], aFilter[0], aEQ[0], aMod[0], aSpace[0], aTexture[0], aDelay[0]]);
-      aRight = SelectX.ar(aEffect, [aThru[1], aFilter[1], aEQ[1], aMod[1], aSpace[1], aTexture[1], aDelay[1]]);
-      bLeft = SelectX.ar(bEffect, [bThru[0], bFilter[0], bEQ[0], bMod[0], bSpace[0], bTexture[0], bDelay[0]]);
-      bRight = SelectX.ar(bEffect, [bThru[1], bFilter[1], bEQ[1], bMod[1], bSpace[1], bTexture[1], bDelay[1]]);
+      bThru = dry;
+      bFilter = RLPF.ar(dry, LinExp.kr(bP1, 0, 1, 80, 12000), LinLin.kr(bP2, 0, 1, 0.9, 0.12));
+      bEq = BPeakEQ.ar(dry, LinExp.kr(bP1, 0, 1, 90, 9000), LinExp.kr(bP3, 0, 1, 0.4, 5), LinLin.kr(bP2, 0, 1, -15, 15));
+      bMod = DelayC.ar(dry, 0.06, SinOsc.kr(LinLin.kr(bP1, 0, 1, 0.05, 4), [0, 1.5708], LinLin.kr(bP2, 0, 1, 0.001, 0.018), 0.006));
+      bSpace = FreeVerb2.ar(dry[0], dry[1], 1, LinLin.kr(bP1, 0, 1, 0.15, 0.95), LinLin.kr(bP2, 0, 1, 0.1, 0.85));
+      bTexture = (dry * SinOsc.ar(LinExp.kr(bP1, 0, 1, 18, 2200))).tanh;
+      bDelay = LPF.ar(CombC.ar(dry, 1.2, LinExp.kr(bP1, 0, 1, 0.05, 0.9), LinExp.kr(bP2.clip(0.001, 1), 0.001, 1, 0.25, 8)), LinExp.kr(bP4, 0, 1, 900, 12000));
+      bL = SelectX.ar(bEff, [bThru[0], bFilter[0], bEq[0], bMod[0], bSpace[0], bTexture[0], bDelay[0]]);
+      bR = SelectX.ar(bEff, [bThru[1], bFilter[1], bEq[1], bMod[1], bSpace[1], bTexture[1], bDelay[1]]);
+      sceneB = XFade2.ar(dry, [bL, bR], (bAmt * 2) - 1);
 
-      sceneA = [aLeft, aRight];
-      sceneB = [bLeft, bRight];
       sig = XFade2.ar(sceneA, sceneB, (Lag.kr(xfade.clip(0, 1), 0.05) * 2) - 1);
       sig = sig * Lag.kr(outputAmp, 0.05);
       Out.ar(out, LeakDC.ar(Limiter.ar(sig, 0.98)));
