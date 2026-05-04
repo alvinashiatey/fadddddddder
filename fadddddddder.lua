@@ -124,7 +124,25 @@ local function ensure_bank()
     for i = 1, NUM_SCENES do state.bank[i] = sanitize_slot(state.bank[i], i) end
     state.slots.A = clamp(tonumber(state.slots.A) or 1, 1, NUM_SCENES)
     state.slots.B = clamp(tonumber(state.slots.B) or 9, 1, NUM_SCENES)
+    if state.slots.A == state.slots.B then
+        state.slots.B = (state.slots.A % NUM_SCENES) + 1
+    end
     state.xfade = clamp(tonumber(state.xfade) or 0, 0, 1)
+end
+
+local function exclusive_slot(side, slot, delta)
+    local other = side == "A" and "B" or "A"
+    local direction = delta == nil and 1 or (delta < 0 and -1 or 1)
+    slot = clamp(slot, 1, NUM_SCENES)
+
+    if slot == state.slots[other] then
+        slot = slot + direction
+        if slot < 1 or slot > NUM_SCENES then
+            slot = state.slots[other] - direction
+        end
+    end
+
+    return clamp(slot, 1, NUM_SCENES)
 end
 
 local function save_bank()
@@ -214,8 +232,8 @@ local function change_page(delta)
     state.cursor = 1
 end
 
-local function set_slot(side, slot)
-    state.slots[side] = clamp(slot, 1, NUM_SCENES)
+local function set_slot(side, slot, delta)
+    state.slots[side] = exclusive_slot(side, slot, delta)
     state.cursor = 1
     apply_bundle()
     save_bank()
@@ -358,9 +376,9 @@ function enc(n, d)
         if page == "perform" then
             if k1_down then
                 k1_used_as_modifier = true
-                set_slot("B", state.slots.B + d)
+                set_slot("B", state.slots.B + d, d)
             else
-                set_slot("A", state.slots.A + d)
+                set_slot("A", state.slots.A + d, d)
             end
         else
             local side = side_for_page(page)
