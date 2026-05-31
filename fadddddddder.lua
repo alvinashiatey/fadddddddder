@@ -8,49 +8,45 @@ local tabutil = require "tabutil"
 local pages = { "perform", "scene_a", "scene_b" }
 local page_labels = { perform = "perform", scene_a = "scene A", scene_b = "scene B" }
 
-local effect_order = { "thru", "filter", "eq", "mod", "space", "texture", "delay" }
-local effect_labels = {
-    thru    = "thru",
-    filter  = "filter",
-    eq      = "eq",
-    mod     = "mod",
-    space   = "space",
-    texture = "texture",
-    delay   = "delay",
+local effect_definitions = {
+    { id = "thru",           label = "thru",           params = { "tone", "gain" },                      param_count = 2, defaults = { amount = 0.0, param1 = 0.75, param2 = 0.5,  param3 = 0.5,  param4 = 0.5 } },
+    { id = "air_widen",      label = "air widen",      params = { "cutoff", "res", "space", "width" },  param_count = 4, defaults = { amount = 0.5,  param1 = 0.72, param2 = 0.35, param3 = 0.45, param4 = 0.85 } },
+    { id = "washed_hall",    label = "washed hall",    params = { "cutoff", "res", "size", "shade" },  param_count = 4, defaults = { amount = 0.58, param1 = 0.68, param2 = 0.35, param3 = 0.72, param4 = 0.38 } },
+    { id = "spring_tunnel",  label = "spring tunnel",  params = { "focus", "res", "decay", "tone" },   param_count = 4, defaults = { amount = 0.55, param1 = 0.46, param2 = 0.55, param3 = 0.62, param4 = 0.55 } },
+    { id = "burn_echo",      label = "burn echo",      params = { "tone", "drive", "time", "shade" },  param_count = 4, defaults = { amount = 0.62, param1 = 0.52, param2 = 0.58, param3 = 0.42, param4 = 0.45 } },
+    { id = "broken_tape",    label = "broken tape",    params = { "wear", "wobble", "tone", "width" },  param_count = 4, defaults = { amount = 0.56, param1 = 0.48, param2 = 0.44, param3 = 0.52, param4 = 0.64 } },
+    { id = "metal_room",     label = "metal room",     params = { "pitch", "shape", "size", "shade" },  param_count = 4, defaults = { amount = 0.52, param1 = 0.36, param2 = 0.32, param3 = 0.58, param4 = 0.34 } },
+    { id = "comb_drift",     label = "comb drift",     params = { "color", "drift", "tone", "width" },  param_count = 4, defaults = { amount = 0.48, param1 = 0.42, param2 = 0.48, param3 = 0.48, param4 = 0.62 } },
+    { id = "freeze_haze",    label = "freeze haze",    params = { "cutoff", "res", "hold", "shade" },  param_count = 4, defaults = { amount = 0.58, param1 = 0.7,  param2 = 0.4,  param3 = 0.62, param4 = 0.42 } },
+    { id = "dub_bloom",      label = "dub bloom",      params = { "focus", "feedback", "time", "shade" }, param_count = 4, defaults = { amount = 0.6,  param1 = 0.44, param2 = 0.66, param3 = 0.48, param4 = 0.4 } },
+    { id = "glass_bite",     label = "glass bite",     params = { "cutoff", "shape", "pitch", "shade" }, param_count = 4, defaults = { amount = 0.5,  param1 = 0.7,  param2 = 0.34, param3 = 0.38, param4 = 0.38 } },
+    { id = "pressure_drive", label = "pressure drive", params = { "focus", "drive", "body", "tone" },   param_count = 4, defaults = { amount = 0.54, param1 = 0.42, param2 = 0.56, param3 = 0.48, param4 = 0.5 } },
 }
 
-local effect_params = {
-    thru    = { "tone", "gain" },
-    filter  = { "cutoff", "res", "mode", "slope" },
-    eq      = { "freq", "gain", "q", "style" },
-    mod     = { "rate", "depth", "type", "stages" },
-    space   = { "size", "damp", "type", "width" },
-    texture = { "color", "damage", "type", "motion" },
-    delay   = { "time", "feedback", "freeze", "tone" },
-}
-
-local effect_param_counts = {
-    thru    = 2,
-    filter  = 4,
-    eq      = 4,
-    mod     = 4,
-    space   = 4,
-    texture = 4,
-    delay   = 4,
-}
-
-local default_values = {
-    thru    = { amount = 0.0, param1 = 0.5,  param2 = 0.5,  param3 = 0.5, param4 = 0.5 },
-    filter  = { amount = 0.65, param1 = 0.55, param2 = 0.45, param3 = 0.0, param4 = 0.0 },
-    eq      = { amount = 0.55, param1 = 0.5,  param2 = 0.5,  param3 = 0.4, param4 = 0.0 },
-    mod     = { amount = 0.55, param1 = 0.3,  param2 = 0.45, param3 = 0.0, param4 = 0.5 },
-    space   = { amount = 0.55, param1 = 0.55, param2 = 0.35, param3 = 0.4, param4 = 0.7 },
-    texture = { amount = 0.45, param1 = 0.45, param2 = 0.35, param3 = 0.0, param4 = 0.4 },
-    delay   = { amount = 0.55, param1 = 0.42, param2 = 0.65, param3 = 0.0, param4 = 0.45 },
-}
-
+local effect_order = {}
+local effect_labels = {}
+local effect_params = {}
+local effect_param_counts = {}
+local default_values = {}
 local effect_index_map = {}
-for i, name in ipairs(effect_order) do effect_index_map[name] = i end
+local legacy_effect_map = {
+    thru = "thru",
+    filter = "washed_hall",
+    eq = "pressure_drive",
+    mod = "comb_drift",
+    space = "washed_hall",
+    texture = "broken_tape",
+    delay = "dub_bloom",
+}
+
+for i, definition in ipairs(effect_definitions) do
+    effect_order[i] = definition.id
+    effect_labels[definition.id] = definition.label
+    effect_params[definition.id] = definition.params
+    effect_param_counts[definition.id] = definition.param_count
+    default_values[definition.id] = definition.defaults
+    effect_index_map[definition.id] = i
+end
 
 local NUM_SCENES = 16
 local data_dir = _path.data .. "fadddddddder/"
@@ -95,7 +91,7 @@ end
 local sanitize_slot
 
 local function new_scene_slot(index)
-    local effect = index == 1 and "delay" or "thru"
+    local effect = index == 1 and "dub_bloom" or "thru"
     return {
         effect = effect,
         values = default_effect_values(),
@@ -111,7 +107,8 @@ end
 
 sanitize_slot = function(slot, index)
     if type(slot) ~= "table" then return new_scene_slot(index) end
-    if effect_index_map[slot.effect] == nil then slot.effect = index == 1 and "delay" or "thru" end
+    if legacy_effect_map[slot.effect] ~= nil then slot.effect = legacy_effect_map[slot.effect] end
+    if effect_index_map[slot.effect] == nil then slot.effect = index == 1 and "dub_bloom" or "thru" end
     if type(slot.values) ~= "table" then slot.values = {} end
     for _, effect in ipairs(effect_order) do
         local defaults = default_values[effect]
@@ -153,7 +150,7 @@ end
 
 local function save_bank()
     os.execute("mkdir -p " .. data_dir)
-    tabutil.save({ version = 1, slots = state.slots, xfade = state.xfade, bank = state.bank }, bank_file)
+    tabutil.save({ version = 2, slots = state.slots, xfade = state.xfade, bank = state.bank }, bank_file)
 end
 
 local function load_bank()

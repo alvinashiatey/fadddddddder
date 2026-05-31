@@ -14,16 +14,22 @@ First pass. The core workflow is there:
 - store and recall both 16-slot scene banks automatically
 
 This version is intentionally small, but the live DSP now runs in a custom SuperCollider engine instead of `softcut` transport tricks.
+The visible effects are curated presets built from a CPU-safe modular backend.
 
-## Macro Effects
+## Preset Effects
 
 - `thru`
-- `filter`: 12/24dB multimode filter
-- `eq`: parametric EQ and DJ-style kill EQ
-- `mod`: 2-10 stage phaser, flanger, and 2-5 tap chorus
-- `space`: spatializer, plate, spring, and dark reverb
-- `texture`: comb filter, compressor, lo-fi, and ring-style motion
-- `delay`: echo, dub delay, and freeze-style delay
+- `air widen`: highpass into stereo widening
+- `washed hall`: highpass into dark hall reverb
+- `spring tunnel`: bandpass into spring space
+- `burn echo`: drive into delay
+- `broken tape`: lo-fi wear into chorus wobble
+- `metal room`: ring modulation into dark room
+- `comb drift`: comb resonance into chorus drift
+- `freeze haze`: highpass into freeze-style hold
+- `dub bloom`: bandpass into dub repeats
+- `glass bite`: highpass into ring modulation
+- `pressure drive`: focused EQ into drive
 
 ## Controls
 
@@ -56,10 +62,11 @@ This version is intentionally small, but the live DSP now runs in a custom Super
 This is a live-input SuperCollider processor with a scene crossfader.
 
 - incoming audio is processed by a custom engine in `lib/Engine_Fadddddddder.sc`
-- the selected `A` and `B` slots each run their own independent macro effect, amount, and four persisted macro values
+- the selected `A` and `B` slots each run their own independent preset effect, amount, and four persisted macro values
 - the engine crossfades between those scene outputs in real time
 - all effect parameters are smoothed in SuperCollider to reduce zipper noise and clicks
-- the live engine is self-contained in `lib/Engine_Fadddddddder.sc`; `lib/fx/` contains exploratory/reference FX classes
+- the live engine is self-contained in `lib/Engine_Fadddddddder.sc`
+- each preset is internally limited to two serial DSP stages for CPU safety
 - both 16-slot scene banks are saved to `data/fadddddddder/scene_bank.data`
 
 That means simple filter moves no longer depend on `softcut` head jumps, which was the main source of the clicking and accidental short-loop behavior.
@@ -88,23 +95,6 @@ fadddddddder/
   README.md
   lib/
     Engine_Fadddddddder.sc
-    fx/
-      Thru.sc
-      Lowpass.sc
-      Highpass.sc
-      Dub.sc
-      Microloop.sc
-      Freeze.sc
-      Drive.sc
-      Chorus.sc
-      Reverb.sc
-      Ringmod.sc
-      MacroFilter.sc
-      MacroEQ.sc
-      MacroMod.sc
-      MacroSpace.sc
-      MacroTexture.sc
-      MacroDelay.sc
 ```
 
 ## Persistence
@@ -120,7 +110,7 @@ The bank saves whenever you edit slots, scene values, or the crossfader, and aga
 
 ## Likely Next Steps
 
+- tune preset gain staging on actual norns hardware
 - add scene copy/capture actions
 - add waveform or input/output metering
-- tune the SC macros on actual norns hardware
 - add params for input mode and gain staging
