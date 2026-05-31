@@ -9,18 +9,18 @@ local pages = { "perform", "scene_a", "scene_b" }
 local page_labels = { perform = "perform", scene_a = "scene A", scene_b = "scene B" }
 
 local effect_definitions = {
-    { id = "thru",           label = "thru",           params = { "tone", "gain" },                      param_count = 2, defaults = { amount = 0.0, param1 = 0.75, param2 = 0.5,  param3 = 0.5,  param4 = 0.5 } },
-    { id = "air_widen",      label = "air widen",      params = { "cutoff", "res", "space", "width" },  param_count = 4, defaults = { amount = 0.5,  param1 = 0.72, param2 = 0.35, param3 = 0.45, param4 = 0.85 } },
-    { id = "washed_hall",    label = "washed hall",    params = { "cutoff", "res", "size", "shade" },  param_count = 4, defaults = { amount = 0.58, param1 = 0.68, param2 = 0.35, param3 = 0.72, param4 = 0.38 } },
-    { id = "spring_tunnel",  label = "spring tunnel",  params = { "focus", "res", "decay", "tone" },   param_count = 4, defaults = { amount = 0.55, param1 = 0.46, param2 = 0.55, param3 = 0.62, param4 = 0.55 } },
-    { id = "burn_echo",      label = "burn echo",      params = { "tone", "drive", "time", "shade" },  param_count = 4, defaults = { amount = 0.62, param1 = 0.52, param2 = 0.58, param3 = 0.42, param4 = 0.45 } },
-    { id = "broken_tape",    label = "broken tape",    params = { "wear", "wobble", "tone", "width" },  param_count = 4, defaults = { amount = 0.56, param1 = 0.48, param2 = 0.44, param3 = 0.52, param4 = 0.64 } },
-    { id = "metal_room",     label = "metal room",     params = { "pitch", "shape", "size", "shade" },  param_count = 4, defaults = { amount = 0.52, param1 = 0.36, param2 = 0.32, param3 = 0.58, param4 = 0.34 } },
-    { id = "comb_drift",     label = "comb drift",     params = { "color", "drift", "tone", "width" },  param_count = 4, defaults = { amount = 0.48, param1 = 0.42, param2 = 0.48, param3 = 0.48, param4 = 0.62 } },
-    { id = "freeze_haze",    label = "freeze haze",    params = { "cutoff", "res", "hold", "shade" },  param_count = 4, defaults = { amount = 0.58, param1 = 0.7,  param2 = 0.4,  param3 = 0.62, param4 = 0.42 } },
-    { id = "dub_bloom",      label = "dub bloom",      params = { "focus", "feedback", "time", "shade" }, param_count = 4, defaults = { amount = 0.6,  param1 = 0.44, param2 = 0.66, param3 = 0.48, param4 = 0.4 } },
-    { id = "glass_bite",     label = "glass bite",     params = { "cutoff", "shape", "pitch", "shade" }, param_count = 4, defaults = { amount = 0.5,  param1 = 0.7,  param2 = 0.34, param3 = 0.38, param4 = 0.38 } },
-    { id = "pressure_drive", label = "pressure drive", params = { "focus", "drive", "body", "tone" },   param_count = 4, defaults = { amount = 0.54, param1 = 0.42, param2 = 0.56, param3 = 0.48, param4 = 0.5 } },
+    { id = "thru",           engine = "thru",    label = "thru",           params = { "tone", "gain" },                      param_count = 2, defaults = { amount = 0.0, param1 = 0.75, param2 = 0.5,  param3 = 0.5,  param4 = 0.5 } },
+    { id = "air_widen",      engine = "space",   label = "air widen",      params = { "size", "damp", "type", "width" },  param_count = 4, defaults = { amount = 0.36, param1 = 0.12, param2 = 0.18, param3 = 0.0,  param4 = 0.95 } },
+    { id = "washed_hall",    engine = "space",   label = "washed hall",    params = { "size", "damp", "type", "width" },  param_count = 4, defaults = { amount = 0.58, param1 = 0.72, param2 = 0.38, param3 = 1.0,  param4 = 0.75 } },
+    { id = "spring_tunnel",  engine = "space",   label = "spring tunnel",  params = { "size", "damp", "type", "width" },  param_count = 4, defaults = { amount = 0.55, param1 = 0.5,  param2 = 0.35, param3 = 0.66, param4 = 0.35 } },
+    { id = "burn_echo",      engine = "delay",   label = "burn echo",      params = { "time", "feedback", "freeze", "tone" }, param_count = 4, defaults = { amount = 0.62, param1 = 0.42, param2 = 0.62, param3 = 0.0,  param4 = 0.3 } },
+    { id = "broken_tape",    engine = "texture", label = "broken tape",    params = { "color", "damage", "type", "motion" }, param_count = 4, defaults = { amount = 0.56, param1 = 0.28, param2 = 0.55, param3 = 0.66, param4 = 0.3 } },
+    { id = "metal_room",     engine = "texture", label = "metal room",     params = { "color", "damage", "type", "motion" }, param_count = 4, defaults = { amount = 0.52, param1 = 0.52, param2 = 0.48, param3 = 1.0,  param4 = 0.4 } },
+    { id = "comb_drift",     engine = "mod",     label = "comb drift",     params = { "rate", "depth", "type", "stages" },  param_count = 4, defaults = { amount = 0.48, param1 = 0.24, param2 = 0.35, param3 = 1.0,  param4 = 0.72 } },
+    { id = "freeze_haze",    engine = "delay",   label = "freeze haze",    params = { "time", "feedback", "freeze", "tone" }, param_count = 4, defaults = { amount = 0.58, param1 = 0.22, param2 = 0.78, param3 = 1.0,  param4 = 0.36 } },
+    { id = "dub_bloom",      engine = "delay",   label = "dub bloom",      params = { "time", "feedback", "freeze", "tone" }, param_count = 4, defaults = { amount = 0.6,  param1 = 0.48, param2 = 0.68, param3 = 0.25, param4 = 0.42 } },
+    { id = "glass_bite",     engine = "texture", label = "glass bite",     params = { "color", "damage", "type", "motion" }, param_count = 4, defaults = { amount = 0.5,  param1 = 0.82, param2 = 0.34, param3 = 1.0,  param4 = 0.18 } },
+    { id = "pressure_drive", engine = "eq",      label = "pressure drive", params = { "freq", "gain", "q", "style" },      param_count = 4, defaults = { amount = 0.54, param1 = 0.38, param2 = 0.7,  param3 = 0.55, param4 = 0.0 } },
 }
 
 local effect_order = {}
@@ -29,6 +29,7 @@ local effect_params = {}
 local effect_param_counts = {}
 local default_values = {}
 local effect_index_map = {}
+local effect_engine_map = {}
 local legacy_effect_map = {
     thru = "thru",
     filter = "washed_hall",
@@ -46,6 +47,7 @@ for i, definition in ipairs(effect_definitions) do
     effect_param_counts[definition.id] = definition.param_count
     default_values[definition.id] = definition.defaults
     effect_index_map[definition.id] = i
+    effect_engine_map[definition.id] = definition.engine
 end
 
 local NUM_SCENES = 16
@@ -186,10 +188,13 @@ end
 -- ---------------------------------------------------------------------------
 
 local function effect_engine_index(name)
-    return (effect_index_map[name] or 1) - 1
+    local engine_effect = effect_engine_map[name] or "thru"
+    local engine_order = { thru = 0, filter = 1, eq = 2, mod = 3, space = 4, texture = 5, delay = 6 }
+    return engine_order[engine_effect] or 0
 end
 
 local function sync_scene(side)
+    if engine.set_scene_a_effect == nil or engine.set_scene_b_effect == nil then return end
     local scene = scene_for_side(side)
     local values = values_for_scene(scene)
 
