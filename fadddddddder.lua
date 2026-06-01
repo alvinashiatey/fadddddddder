@@ -329,7 +329,7 @@ local engine_effect_index = {
 }
 
 for i, def in ipairs(effect_definitions) do
-	effect_order = def.id
+	effect_order[i] = def.id
 	effect_labels[def.id] = def.label
 	effect_params[def.id] = def.params
 	effect_param_counts[def.id] = def.param_count
