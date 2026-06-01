@@ -53,11 +53,6 @@ local effect_param_counts = {}
 local default_values = {}
 local effect_index_map = {}
 local effect_engine_map = {}
-local reset_on_select_effects = {
-    low_pass = true,
-    band_pass = true,
-    high_pass = true,
-}
 local legacy_effect_map = {
     thru = "thru",
     filter = "washed_hall",
@@ -288,9 +283,6 @@ local function adjust_scene(side, d)
     if state.cursor == 1 then
         local idx = clamp(effect_index_map[scene.effect] + d, 1, #effect_order)
         scene.effect = effect_order[idx]
-        if reset_on_select_effects[scene.effect] then
-            scene.values[scene.effect] = clone_values(default_values[scene.effect])
-        end
         state.cursor = clamp(state.cursor, 1, cursor_max_for_scene(scene))
     elseif state.cursor == 2 then
         values.amount = clamp(values.amount + d * 0.02, 0, 1)
