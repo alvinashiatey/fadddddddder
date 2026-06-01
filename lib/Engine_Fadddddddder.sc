@@ -96,73 +96,17 @@ Engine_Fadddddddder : CroneEngine {
         // Do NOT lag the effect index — interpolating between integer slots
         // causes SelectX to blend between unrelated algorithms and produces
         // unpredictable artefacts.  Round to the nearest integer instead.
-        eff = sceneAEffect.clip(0, 25).round(1);
+        eff = sceneAEffect.clip(0, 19).round(1);
 
-        // ---- 20 pitchShift: harmoniser / detune / octave ----
-// p1 = pitch ratio (octave down → octave up), p2 = detune spread,
-// p3 = dry+harmony blend (parallel interval), p4 = tone
-psPitch  = LinExp.kr(p1, 0, 1, 0.5, 2.0);          // -1oct .. +1oct
-psWindow = 0.2;
-psDisp   = LinLin.kr(p2, 0, 1, 0.0, 0.05);
-aPitch   = PitchShift.ar(dry, psWindow, psPitch, psDisp, psDisp * 0.5);
-// optional parallel harmony voice mixed in via p3
-psWet    = aPitch + (PitchShift.ar(dry, psWindow,
-                (psPitch * 1.5).clip(0.5, 2.0), psDisp, psDisp) * LinLin.kr(p3, 0, 1, 0.0, 0.9));
-aPitch   = LPF.ar(LeakDC.ar(psWet), LinExp.kr(p4, 0, 1, 1200, 12000));
-
-// ---- 21 reverse: record into LocalBuf, play backwards ----
-// p1 = segment length, p2 = playback rate, p4 = tone
-revBuf   = LocalBuf(SampleRate.ir * 1.0, 2).clear;
-revRate  = LinLin.kr(p2, 0, 1, 0.5, 1.5);
-revTrig  = Impulse.kr(LinExp.kr(p1, 0, 1, 6, 0.7));   // segment rate
-RecordBuf.ar(dry, revBuf, 0, 1, 0, 1, 1, 1, revTrig);
-revPhase = Phasor.ar(revTrig,
-    BufRateScale.kr(revBuf) * revRate * -1,
-    0, BufFrames.kr(revBuf),
-    BufFrames.kr(revBuf));
-aReverse = BufRd.ar(2, revBuf, revPhase, 1, 4);
-aReverse = LPF.ar(LeakDC.ar(aReverse), LinExp.kr(p4, 0, 1, 1200, 12000));
-aReverse = aReverse.clip2(1.0);
-
-// ---- 22 slapback: single short repeat, no feedback ----
-// p1 = time (40-180ms), p4 = tone, p3 = repeat level
-slapTime = LinLin.kr(p1, 0, 1, 0.04, 0.18);
-slapTone = LinExp.kr(p4, 0, 1, 1200, 9000);
-aSlapback = dry + (LPF.ar(DelayC.ar(dry, 0.25, slapTime), slapTone)
-            * LinLin.kr(p3, 0, 1, 0.3, 0.95));
-aSlapback = LeakDC.ar(aSlapback);
-
-// ---- 23 convReverb: Convolution2 with short generated impulse ----
-// p1 = impulse decay (size), p2 = density, p4 = tone
-// ---- 23 convReverb: Convolution2 with short generated impulse ----
-convDecay = LinLin.kr(p1, 0, 1, 0.05, 0.4);
-convDens  = LinLin.kr(p2, 0, 1, 0.3, 1.0);
-convBuf   = LocalBuf(2048, 1).clear;
-RecordBuf.ar(
-    WhiteNoise.ar * EnvGen.ar(Env.perc(0.001, convDecay), Impulse.ar(0)),
-    convBuf, 0, 1, 0, 1, 0, 0);
-aConv = Convolution2.ar(Mix.ar(dry) * convDens, convBuf, Impulse.kr(0), 2048);
-aConv = LPF.ar(LeakDC.ar(aConv ! 2), LinExp.kr(p4, 0, 1, 1500, 11000));
-
-// ---- 24 spectralFreeze: PV_MagFreeze smear / freeze ----
-// p1 = freeze gate, p2 = smear amount (PV_MagSmear), p4 = tone
-freezeAmt = (p1 > 0.5);    // > 50% = frozen
-smearAmt  = LinLin.kr(p2, 0, 1, 0, 16).round(1);
-fftBuf    = LocalBuf(2048, 1);
-fftChain  = FFT(fftBuf, Mix.ar(dry));
-fftChain  = PV_MagSmear(fftChain, smearAmt);
-fftChain  = PV_MagFreeze(fftChain, freezeAmt);
-aSpectral = IFFT(fftChain).dup;
-aSpectral = LPF.ar(LeakDC.ar(aSpectral), LinExp.kr(p4, 0, 1, 1400, 12000));
-
-// ---- 25 autoWah: amplitude follower into filter cutoff ----
-// p1 = sensitivity, p2 = range, p3 = resonance, p4 = base cutoff
-awEnv   = Amplitude.kr(Mix.ar(dry), 0.01, 0.15) * LinLin.kr(p1, 0, 1, 2, 30);
-awFloor = LinExp.kr(p4, 0, 1, 120, 800);
-awRange = LinExp.kr(p2, 0, 1, 400, 6000);
-awCut   = (awFloor + (awEnv * awRange)).clip(80, 12000);
-awRes   = LinLin.kr(p3, 0, 1, 0.6, 0.08);
-aAutoWah = LeakDC.ar(RLPF.ar(dry, Lag.kr(awCut, 0.02), awRes) * 1.4);
+        // The always-on Select.ar graph cannot safely host these new branches
+        // yet; keep their slots alive as pass-through until they are rebuilt in
+        // an isolated architecture that does not run FFT/conv/buffer code full-time.
+        aPitch = dry;
+        aReverse = dry;
+        aSlapback = dry;
+        aConv = dry;
+        aSpectral = dry;
+        aAutoWah = dry;
 
         // filter: cutoff, resonance, mode (lp/bp/hp), slope (12/24dB)
         cutoff = LinExp.kr(p1, 0, 1, 45, 12000);
@@ -368,73 +312,17 @@ aAutoWah = LeakDC.ar(RLPF.ar(dry, Lag.kr(awCut, 0.02), awRes) * 1.4);
         p2  = Lag.kr(sceneBParam2.clip(0, 1), 0.08);
         p3  = Lag.kr(sceneBParam3.clip(0, 1), 0.08);
         p4  = Lag.kr(sceneBParam4.clip(0, 1), 0.08);
-        eff = sceneBEffect.clip(0, 25).round(1);
+        eff = sceneBEffect.clip(0, 19).round(1);
 
-        // ---- 20 pitchShift: harmoniser / detune / octave ----
-        // p1 = pitch ratio (octave down → octave up), p2 = detune spread,
-        // p3 = dry+harmony blend (parallel interval), p4 = tone
-        psPitch  = LinExp.kr(p1, 0, 1, 0.5, 2.0);          // -1oct .. +1oct
-        psWindow = 0.2;
-        psDisp   = LinLin.kr(p2, 0, 1, 0.0, 0.05);
-        bPitch   = PitchShift.ar(dry, psWindow, psPitch, psDisp, psDisp * 0.5);
-        // optional parallel harmony voice mixed in via p3
-        psWet    = bPitch + (PitchShift.ar(dry, psWindow,
-                        (psPitch * 1.5).clip(0.5, 2.0), psDisp, psDisp) * LinLin.kr(p3, 0, 1, 0.0, 0.9));
-        bPitch   = LPF.ar(LeakDC.ar(psWet), LinExp.kr(p4, 0, 1, 1200, 12000));
-
-        // ---- 21 reverse: record into LocalBuf, play backwards ----
-        // p1 = segment length, p2 = playback rate, p4 = tone
-        revBuf   = LocalBuf(SampleRate.ir * 1.0, 2).clear;
-        revRate  = LinLin.kr(p2, 0, 1, 0.5, 1.5);
-        revTrig  = Impulse.kr(LinExp.kr(p1, 0, 1, 6, 0.7));  // segment rate
-        RecordBuf.ar(dry, revBuf, 0, 1, 0, 1, 1, 1, revTrig);
-        revPhase = Phasor.ar(revTrig,
-            BufRateScale.kr(revBuf) * revRate * -1,
-            0, BufFrames.kr(revBuf),
-            BufFrames.kr(revBuf));
-        bReverse = BufRd.ar(2, revBuf, revPhase, 1, 4);
-        bReverse = LPF.ar(LeakDC.ar(bReverse), LinExp.kr(p4, 0, 1, 1200, 12000));
-        bReverse = bReverse.clip2(1.0);
-
-        // ---- 22 slapback: single short repeat, no feedback ----
-        // p1 = time (40-180ms), p4 = tone, p3 = repeat level
-        slapTime = LinLin.kr(p1, 0, 1, 0.04, 0.18);
-        slapTone = LinExp.kr(p4, 0, 1, 1200, 9000);
-        bSlapback = dry + (LPF.ar(DelayC.ar(dry, 0.25, slapTime), slapTone)
-                    * LinLin.kr(p3, 0, 1, 0.3, 0.95));
-        bSlapback = LeakDC.ar(bSlapback);
-
-        // ---- 23 convReverb: Convolution2 with short generated impulse ----
-        // p1 = impulse decay (size), p2 = density, p4 = tone
-
-        convDecay = LinLin.kr(p1, 0, 1, 0.05, 0.4);
-        convDens  = LinLin.kr(p2, 0, 1, 0.3, 1.0);
-        convBuf   = LocalBuf(2048, 1).clear;
-        RecordBuf.ar(
-            WhiteNoise.ar * EnvGen.ar(Env.perc(0.001, convDecay), Impulse.ar(0)),
-            convBuf, 0, 1, 0, 1, 0, 0);
-        bConv = Convolution2.ar(Mix.ar(dry) * convDens, convBuf, Impulse.kr(0), 2048);
-        bConv = LPF.ar(LeakDC.ar(bConv ! 2), LinExp.kr(p4, 0, 1, 1500, 11000));
-
-        // ---- 24 spectralFreeze: PV_MagFreeze smear / freeze ----
-        // p1 = freeze gate, p2 = smear amount (PV_MagSmear), p4 = tone
-        freezeAmt = (p1 > 0.5);   // > 50% = frozen, < 50% = live
-        smearAmt = LinLin.kr(p2, 0, 1, 0, 16).round(1);
-        fftBuf = LocalBuf(2048, 1);
-        fftChain = FFT(fftBuf, Mix.ar(dry));
-        fftChain = PV_MagSmear(fftChain, smearAmt);
-        fftChain = PV_MagFreeze(fftChain, freezeAmt);
-        bSpectral = IFFT(fftChain).dup;
-        bSpectral = LPF.ar(LeakDC.ar(bSpectral), LinExp.kr(p4, 0, 1, 1400, 12000));
-
-        // ---- 25 autoWah: amplitude follower into filter cutoff ----
-        // p1 = sensitivity, p2 = range, p3 = resonance, p4 = base cutoff
-        awEnv   = Amplitude.kr(Mix.ar(dry), 0.01, 0.15) * LinLin.kr(p1, 0, 1, 2, 30);
-        awFloor = LinExp.kr(p4, 0, 1, 120, 800);
-        awRange = LinExp.kr(p2, 0, 1, 400, 6000);
-        awCut   = (awFloor + (awEnv * awRange)).clip(80, 12000);
-        awRes  = LinLin.kr(p3, 0, 1, 0.6, 0.08);
-        bAutoWah = LeakDC.ar(RLPF.ar(dry, Lag.kr(awCut, 0.02), awRes) * 1.4);
+        // The always-on Select.ar graph cannot safely host these new branches
+        // yet; keep their slots alive as pass-through until they are rebuilt in
+        // an isolated architecture that does not run FFT/conv/buffer code full-time.
+        bPitch = dry;
+        bReverse = dry;
+        bSlapback = dry;
+        bConv = dry;
+        bSpectral = dry;
+        bAutoWah = dry;
 
         cutoff = LinExp.kr(p1, 0, 1, 45, 12000);
         rq     = LinLin.kr(p2, 0, 1, 0.9, 0.06);
