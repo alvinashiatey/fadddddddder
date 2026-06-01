@@ -53,10 +53,10 @@ local effect_param_counts = {}
 local default_values = {}
 local effect_index_map = {}
 local effect_engine_map = {}
-local same_family_transfer = {
-    low_pass = { param3 = true },
-    band_pass = { param3 = true },
-    high_pass = { param3 = true },
+local linked_filter_modes = {
+    low_pass = true,
+    band_pass = true,
+    high_pass = true,
 }
 local legacy_effect_map = {
     thru = "thru",
@@ -294,16 +294,12 @@ local function adjust_scene(side, d)
         local idx = clamp(effect_index_map[scene.effect] + d, 1, #effect_order)
         scene.effect = effect_order[idx]
         local next_values = values_for_effect(scene, scene.effect)
-        if effect_engine_map[previous_effect] == effect_engine_map[scene.effect] and next_values ~= nil then
+        if linked_filter_modes[previous_effect] and linked_filter_modes[scene.effect] and next_values ~= nil then
             next_values.amount = values.amount
             next_values.param1 = values.param1
             next_values.param2 = values.param2
             next_values.param4 = values.param4
-            if same_family_transfer[scene.effect] and same_family_transfer[scene.effect].param3 then
-                next_values.param3 = default_values[scene.effect].param3
-            else
-                next_values.param3 = values.param3
-            end
+            next_values.param3 = default_values[scene.effect].param3
         end
         state.cursor = clamp(state.cursor, 1, cursor_max_for_scene(scene))
     elseif state.cursor == 2 then
