@@ -63,7 +63,7 @@ Engine_Fadddddddder : CroneEngine {
         var tremRate, tremDepth, tremShape, tremBias, tremWave;
         var crushRate, crushBits, crushMix;
         var shiftFreq, shiftSpread;
-        var grainDensity, grainSize, grainScatter, grainRate, grainPan;
+        var grainDensity, grainSize, grainScatter, grainPitch, grainPan;
         var wetL, wetR;
 
         amt = Lag.kr(sceneAAmount.clip(0, 1), 0.08);
@@ -186,13 +186,14 @@ Engine_Fadddddddder : CroneEngine {
         aFreqShift  = LPF.ar(aFreqShift, LinExp.kr(p4, 0, 1, 1500, 12000)) * LinLin.kr(p3, 0, 1, 0.25, 1.0);
 
         // granular: freeze/scatter live input into grains
-        grainDensity = LinExp.kr(p1, 0, 1, 2, 40);
-        grainSize    = LinLin.kr(p2, 0, 1, 0.03, 0.22);
+        grainDensity = LinExp.kr(p1, 0, 1, 3, 65);
+        grainSize    = LinLin.kr(p2, 0, 1, 0.045, 0.28);
         grainScatter = LinLin.kr(p3, 0, 1, 0.0, 1.0);
-        grainRate    = LinLin.kr(p3, 0, 1, 0.85, 1.35);
-        grainPan     = SinOsc.kr(LinLin.kr(p3, 0, 1, 0.05, 4), [0, 1.5708], grainScatter * 0.75);
-        aGranular    = GrainIn.ar(2, Dust.kr(grainDensity), grainSize, dry, grainRate, grainPan, -1, 24);
-        aGranular    = LPF.ar(LeakDC.ar(aGranular), LinExp.kr(p4, 0, 1, 1200, 12000));
+        grainPitch   = LinLin.kr(p3, 0, 1, 0.7, 1.65);
+        grainPan     = SinOsc.kr(LinLin.kr(p3, 0, 1, 0.08, 6), [0, 1.5708], grainScatter * 0.95);
+        aGranular    = GrainIn.ar(2, Dust.kr(grainDensity), grainSize, HPF.ar(dry, 35), grainPan, -1, 96);
+        aGranular    = PitchShift.ar(aGranular, 0.18, grainPitch, grainScatter * 0.08, grainScatter * 0.04);
+        aGranular    = LPF.ar(LeakDC.ar((aGranular * 1.8).softclip), LinExp.kr(p4, 0, 1, 1000, 12000));
 
         wetL = Select.ar(eff, [dry[0], aFilter[0], aEq[0], aMod[0], aSpace[0], aTexture[0], aDelay[0], aResonator[0], aFoldFilter[0], aFormant[0], aTremolo[0], aCrusher[0], aFreqShift[0], aGranular[0]]);
         wetR = Select.ar(eff, [dry[1], aFilter[1], aEq[1], aMod[1], aSpace[1], aTexture[1], aDelay[1], aResonator[1], aFoldFilter[1], aFormant[1], aTremolo[1], aCrusher[1], aFreqShift[1], aGranular[1]]);
@@ -211,7 +212,7 @@ Engine_Fadddddddder : CroneEngine {
         var tremRate, tremDepth, tremShape, tremBias, tremWave;
         var crushRate, crushBits, crushMix;
         var shiftFreq, shiftSpread;
-        var grainDensity, grainSize, grainScatter, grainRate, grainPan;
+        var grainDensity, grainSize, grainScatter, grainPitch, grainPan;
         var wetL, wetR;
 
         amt = Lag.kr(sceneBAmount.clip(0, 1), 0.08);
@@ -316,13 +317,14 @@ Engine_Fadddddddder : CroneEngine {
         ]);
         bFreqShift  = LPF.ar(bFreqShift, LinExp.kr(p4, 0, 1, 1500, 12000)) * LinLin.kr(p3, 0, 1, 0.25, 1.0);
 
-        grainDensity = LinExp.kr(p1, 0, 1, 2, 40);
-        grainSize    = LinLin.kr(p2, 0, 1, 0.03, 0.22);
+        grainDensity = LinExp.kr(p1, 0, 1, 3, 65);
+        grainSize    = LinLin.kr(p2, 0, 1, 0.045, 0.28);
         grainScatter = LinLin.kr(p3, 0, 1, 0.0, 1.0);
-        grainRate    = LinLin.kr(p3, 0, 1, 0.85, 1.35);
-        grainPan     = SinOsc.kr(LinLin.kr(p3, 0, 1, 0.05, 4), [0, 1.5708], grainScatter * 0.75);
-        bGranular    = GrainIn.ar(2, Dust.kr(grainDensity), grainSize, dry, grainRate, grainPan, -1, 24);
-        bGranular    = LPF.ar(LeakDC.ar(bGranular), LinExp.kr(p4, 0, 1, 1200, 12000));
+        grainPitch   = LinLin.kr(p3, 0, 1, 0.7, 1.65);
+        grainPan     = SinOsc.kr(LinLin.kr(p3, 0, 1, 0.08, 6), [0, 1.5708], grainScatter * 0.95);
+        bGranular    = GrainIn.ar(2, Dust.kr(grainDensity), grainSize, HPF.ar(dry, 35), grainPan, -1, 96);
+        bGranular    = PitchShift.ar(bGranular, 0.18, grainPitch, grainScatter * 0.08, grainScatter * 0.04);
+        bGranular    = LPF.ar(LeakDC.ar((bGranular * 1.8).softclip), LinExp.kr(p4, 0, 1, 1000, 12000));
 
         wetL = Select.ar(eff, [dry[0], bFilter[0], bEq[0], bMod[0], bSpace[0], bTexture[0], bDelay[0], bResonator[0], bFoldFilter[0], bFormant[0], bTremolo[0], bCrusher[0], bFreqShift[0], bGranular[0]]);
         wetR = Select.ar(eff, [dry[1], bFilter[1], bEq[1], bMod[1], bSpace[1], bTexture[1], bDelay[1], bResonator[1], bFoldFilter[1], bFormant[1], bTremolo[1], bCrusher[1], bFreqShift[1], bGranular[1]]);

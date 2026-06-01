@@ -351,7 +351,7 @@ local effect_definitions = {
 		label = "grain freeze",
 		params = { "density", "size", "scatter", "tone" },
 		param_count = 4,
-		defaults = { amount = 0.62, param1 = 0.36, param2 = 0.42, param3 = 0.28, param4 = 0.52 },
+		defaults = { amount = 0.92, param1 = 0.18, param2 = 0.78, param3 = 0.08, param4 = 0.46 },
 	},
 	{
 		id = "grain_scatter",
@@ -359,7 +359,7 @@ local effect_definitions = {
 		label = "grain scatter",
 		params = { "density", "size", "scatter", "tone" },
 		param_count = 4,
-		defaults = { amount = 0.76, param1 = 0.72, param2 = 0.24, param3 = 0.82, param4 = 0.38 },
+		defaults = { amount = 1.0, param1 = 0.82, param2 = 0.22, param3 = 0.92, param4 = 0.34 },
 	},
 	{
 		id = "comb_drift",
