@@ -12,6 +12,10 @@
 //   7 = resonator  (comb / karplus-style metallic ringing)
 //   8 = foldFilter (multimode filter with folded resonance path)
 //   9 = formant    (stacked bandpasses / vowel-like tone)
+//  10 = tremolo    (sine to square rhythmic amplitude gating)
+//  11 = crusher    (bit/sample-rate reduction)
+//  12 = freqShift  (single-sideband frequency shifter)
+//  13 = granular   (live-input grain freeze / scatter)
 //
 // param1–param4 are always normalised 0–1; each effect branch maps them
 // to musically useful ranges internally.
@@ -53,9 +57,13 @@ Engine_Fadddddddder : CroneEngine {
       sceneA = {
         var amt, p1, p2, p3, p4, eff;
         var cutoff, rq, bpRq, lp12, lp24, bp12, bp24, hp12, hp24, mode, aFilter;
-        var aEq, aMod, aSpace, aTexture, aDelay, aResonator, aFoldFilter, aFormant;
+        var aEq, aMod, aSpace, aTexture, aDelay, aResonator, aFoldFilter, aFormant, aTremolo, aCrusher, aFreqShift, aGranular;
         var excite, decay, tune, tone, combA, combB, base, folded, foldAmt;
         var formA, formB, formC, spread, focus;
+        var tremRate, tremDepth, tremShape, tremBias, tremWave;
+        var crushRate, crushBits, crushMix;
+        var shiftFreq, shiftSpread;
+        var grainDensity, grainSize, grainScatter, grainRate, grainPan;
         var wetL, wetR;
 
         amt = Lag.kr(sceneAAmount.clip(0, 1), 0.08);
@@ -66,7 +74,7 @@ Engine_Fadddddddder : CroneEngine {
         // Do NOT lag the effect index — interpolating between integer slots
         // causes SelectX to blend between unrelated algorithms and produces
         // unpredictable artefacts.  Round to the nearest integer instead.
-        eff = sceneAEffect.clip(0, 9).round(1);
+        eff = sceneAEffect.clip(0, 13).round(1);
 
         // filter: cutoff, resonance, mode (lp/bp/hp), slope (12/24dB)
         cutoff = LinExp.kr(p1, 0, 1, 45, 12000);
@@ -154,8 +162,40 @@ Engine_Fadddddddder : CroneEngine {
           LinExp.kr(p4, 0, 1, 1400, 12000)
         ));
 
-        wetL = Select.ar(eff, [dry[0], aFilter[0], aEq[0], aMod[0], aSpace[0], aTexture[0], aDelay[0], aResonator[0], aFoldFilter[0], aFormant[0]]);
-        wetR = Select.ar(eff, [dry[1], aFilter[1], aEq[1], aMod[1], aSpace[1], aTexture[1], aDelay[1], aResonator[1], aFoldFilter[1], aFormant[1]]);
+        // tremolo: sine to square amplitude gating
+        tremRate  = LinLin.kr(p1, 0, 1, 0.08, 18);
+        tremDepth = LinLin.kr(p2, 0, 1, 0.0, 1.0);
+        tremShape = p3;
+        tremBias  = LinLin.kr(p4, 0, 1, 0.15, 0.85);
+        tremWave  = XFade2.kr(SinOsc.kr(tremRate), LFPulse.kr(tremRate, 0, tremBias), (tremShape * 2) - 1).range(0, 1);
+        aTremolo  = dry * ((1 - tremDepth) + (tremWave * tremDepth));
+
+        // crusher: sample-rate + bit reduction
+        crushRate = LinExp.kr(p1, 0, 1, 800, 22050);
+        crushBits = LinLin.kr(p2, 0, 1, 4, 16);
+        crushMix  = LinLin.kr(p3, 0, 1, 0.2, 1.0);
+        aCrusher  = LPF.ar(Decimator.ar(dry, crushRate, crushBits), LinExp.kr(p4, 0, 1, 1200, 12000)) * crushMix;
+
+        // frequency shifter: subtle shimmer to robot
+        shiftFreq   = LinLin.kr(p1, 0, 1, 0.5, 800);
+        shiftSpread = LinLin.kr(p2, 0, 1, 0, 20);
+        aFreqShift  = LeakDC.ar([
+          FreqShift.ar(dry[0], shiftFreq - shiftSpread),
+          FreqShift.ar(dry[1], shiftFreq + shiftSpread)
+        ]);
+        aFreqShift  = LPF.ar(aFreqShift, LinExp.kr(p4, 0, 1, 1500, 12000)) * LinLin.kr(p3, 0, 1, 0.25, 1.0);
+
+        // granular: freeze/scatter live input into grains
+        grainDensity = LinExp.kr(p1, 0, 1, 2, 40);
+        grainSize    = LinLin.kr(p2, 0, 1, 0.03, 0.22);
+        grainScatter = LinLin.kr(p3, 0, 1, 0.0, 1.0);
+        grainRate    = LinLin.kr(p3, 0, 1, 0.85, 1.35);
+        grainPan     = SinOsc.kr(LinLin.kr(p3, 0, 1, 0.05, 4), [0, 1.5708], grainScatter * 0.75);
+        aGranular    = GrainIn.ar(2, Dust.kr(grainDensity), grainSize, dry, grainRate, grainPan, -1, 24);
+        aGranular    = LPF.ar(LeakDC.ar(aGranular), LinExp.kr(p4, 0, 1, 1200, 12000));
+
+        wetL = Select.ar(eff, [dry[0], aFilter[0], aEq[0], aMod[0], aSpace[0], aTexture[0], aDelay[0], aResonator[0], aFoldFilter[0], aFormant[0], aTremolo[0], aCrusher[0], aFreqShift[0], aGranular[0]]);
+        wetR = Select.ar(eff, [dry[1], aFilter[1], aEq[1], aMod[1], aSpace[1], aTexture[1], aDelay[1], aResonator[1], aFoldFilter[1], aFormant[1], aTremolo[1], aCrusher[1], aFreqShift[1], aGranular[1]]);
 
         // Wet/dry mix: amt 0 = dry, amt 1 = fully wet
         XFade2.ar(dry, [wetL, wetR], (amt * 2) - 1)
@@ -165,9 +205,13 @@ Engine_Fadddddddder : CroneEngine {
       sceneB = {
         var amt, p1, p2, p3, p4, eff;
         var cutoff, rq, bpRq, lp12, lp24, bp12, bp24, hp12, hp24, mode, bFilter;
-        var bEq, bMod, bSpace, bTexture, bDelay, bResonator, bFoldFilter, bFormant;
+        var bEq, bMod, bSpace, bTexture, bDelay, bResonator, bFoldFilter, bFormant, bTremolo, bCrusher, bFreqShift, bGranular;
         var excite, decay, tune, tone, combA, combB, base, folded, foldAmt;
         var formA, formB, formC, spread, focus;
+        var tremRate, tremDepth, tremShape, tremBias, tremWave;
+        var crushRate, crushBits, crushMix;
+        var shiftFreq, shiftSpread;
+        var grainDensity, grainSize, grainScatter, grainRate, grainPan;
         var wetL, wetR;
 
         amt = Lag.kr(sceneBAmount.clip(0, 1), 0.08);
@@ -175,7 +219,7 @@ Engine_Fadddddddder : CroneEngine {
         p2  = Lag.kr(sceneBParam2.clip(0, 1), 0.08);
         p3  = Lag.kr(sceneBParam3.clip(0, 1), 0.08);
         p4  = Lag.kr(sceneBParam4.clip(0, 1), 0.08);
-        eff = sceneBEffect.clip(0, 9).round(1);
+        eff = sceneBEffect.clip(0, 13).round(1);
 
         cutoff = LinExp.kr(p1, 0, 1, 45, 12000);
         rq     = LinLin.kr(p2, 0, 1, 0.9, 0.06);
@@ -252,8 +296,36 @@ Engine_Fadddddddder : CroneEngine {
           LinExp.kr(p4, 0, 1, 1400, 12000)
         ));
 
-        wetL = Select.ar(eff, [dry[0], bFilter[0], bEq[0], bMod[0], bSpace[0], bTexture[0], bDelay[0], bResonator[0], bFoldFilter[0], bFormant[0]]);
-        wetR = Select.ar(eff, [dry[1], bFilter[1], bEq[1], bMod[1], bSpace[1], bTexture[1], bDelay[1], bResonator[1], bFoldFilter[1], bFormant[1]]);
+        tremRate  = LinLin.kr(p1, 0, 1, 0.08, 18);
+        tremDepth = LinLin.kr(p2, 0, 1, 0.0, 1.0);
+        tremShape = p3;
+        tremBias  = LinLin.kr(p4, 0, 1, 0.15, 0.85);
+        tremWave  = XFade2.kr(SinOsc.kr(tremRate), LFPulse.kr(tremRate, 0, tremBias), (tremShape * 2) - 1).range(0, 1);
+        bTremolo  = dry * ((1 - tremDepth) + (tremWave * tremDepth));
+
+        crushRate = LinExp.kr(p1, 0, 1, 800, 22050);
+        crushBits = LinLin.kr(p2, 0, 1, 4, 16);
+        crushMix  = LinLin.kr(p3, 0, 1, 0.2, 1.0);
+        bCrusher  = LPF.ar(Decimator.ar(dry, crushRate, crushBits), LinExp.kr(p4, 0, 1, 1200, 12000)) * crushMix;
+
+        shiftFreq   = LinLin.kr(p1, 0, 1, 0.5, 800);
+        shiftSpread = LinLin.kr(p2, 0, 1, 0, 20);
+        bFreqShift  = LeakDC.ar([
+          FreqShift.ar(dry[0], shiftFreq - shiftSpread),
+          FreqShift.ar(dry[1], shiftFreq + shiftSpread)
+        ]);
+        bFreqShift  = LPF.ar(bFreqShift, LinExp.kr(p4, 0, 1, 1500, 12000)) * LinLin.kr(p3, 0, 1, 0.25, 1.0);
+
+        grainDensity = LinExp.kr(p1, 0, 1, 2, 40);
+        grainSize    = LinLin.kr(p2, 0, 1, 0.03, 0.22);
+        grainScatter = LinLin.kr(p3, 0, 1, 0.0, 1.0);
+        grainRate    = LinLin.kr(p3, 0, 1, 0.85, 1.35);
+        grainPan     = SinOsc.kr(LinLin.kr(p3, 0, 1, 0.05, 4), [0, 1.5708], grainScatter * 0.75);
+        bGranular    = GrainIn.ar(2, Dust.kr(grainDensity), grainSize, dry, grainRate, grainPan, -1, 24);
+        bGranular    = LPF.ar(LeakDC.ar(bGranular), LinExp.kr(p4, 0, 1, 1200, 12000));
+
+        wetL = Select.ar(eff, [dry[0], bFilter[0], bEq[0], bMod[0], bSpace[0], bTexture[0], bDelay[0], bResonator[0], bFoldFilter[0], bFormant[0], bTremolo[0], bCrusher[0], bFreqShift[0], bGranular[0]]);
+        wetR = Select.ar(eff, [dry[1], bFilter[1], bEq[1], bMod[1], bSpace[1], bTexture[1], bDelay[1], bResonator[1], bFoldFilter[1], bFormant[1], bTremolo[1], bCrusher[1], bFreqShift[1], bGranular[1]]);
 
         XFade2.ar(dry, [wetL, wetR], (amt * 2) - 1)
       }.value;
