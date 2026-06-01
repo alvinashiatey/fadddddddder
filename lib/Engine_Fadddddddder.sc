@@ -16,6 +16,9 @@
 //  11 = crusher    (bit/sample-rate reduction)
 //  12 = freqShift  (single-sideband frequency shifter)
 //  13 = granular   (live-input grain freeze / scatter)
+//  14 = plate      (brighter, tighter synthetic plate)
+//  15 = early      (early reflections cluster, no long tail)
+//  16 = haas       (short inter-channel delay pseudo stereo)
 //
 // param1–param4 are always normalised 0–1; each effect branch maps them
 // to musically useful ranges internally.
@@ -57,13 +60,14 @@ Engine_Fadddddddder : CroneEngine {
       sceneA = {
         var amt, p1, p2, p3, p4, eff;
         var cutoff, rq, bpRq, lp12, lp24, bp12, bp24, hp12, hp24, mode, aFilter;
-        var aEq, aMod, aSpace, aTexture, aDelay, aResonator, aFoldFilter, aFormant, aTremolo, aCrusher, aFreqShift, aGranular;
+        var aEq, aMod, aSpace, aTexture, aDelay, aResonator, aFoldFilter, aFormant, aTremolo, aCrusher, aFreqShift, aGranular, aPlate, aEarly, aHaas;
         var excite, decay, tune, tone, combA, combB, base, folded, foldAmt;
         var formA, formB, formC, spread, focus;
         var tremRate, tremDepth, tremShape, tremBias, tremWave;
         var crushRate, crushBits, crushMix;
         var shiftFreq, shiftSpread;
         var grainDensity, grainSize, grainScatter, grainPitch, grainPan;
+        var pre, room, damp, earlyA, earlyB, earlyC, earlyD, haasTime, haasTilt, plateIn;
         var wetL, wetR;
 
         amt = Lag.kr(sceneAAmount.clip(0, 1), 0.08);
@@ -74,7 +78,7 @@ Engine_Fadddddddder : CroneEngine {
         // Do NOT lag the effect index — interpolating between integer slots
         // causes SelectX to blend between unrelated algorithms and produces
         // unpredictable artefacts.  Round to the nearest integer instead.
-        eff = sceneAEffect.clip(0, 13).round(1);
+        eff = sceneAEffect.clip(0, 16).round(1);
 
         // filter: cutoff, resonance, mode (lp/bp/hp), slope (12/24dB)
         cutoff = LinExp.kr(p1, 0, 1, 45, 12000);
@@ -195,8 +199,32 @@ Engine_Fadddddddder : CroneEngine {
         aGranular    = PitchShift.ar(aGranular, 0.18, grainPitch, grainScatter * 0.08, grainScatter * 0.04);
         aGranular    = LPF.ar(LeakDC.ar((aGranular * 1.8).softclip), LinExp.kr(p4, 0, 1, 1000, 12000));
 
-        wetL = Select.ar(eff, [dry[0], aFilter[0], aEq[0], aMod[0], aSpace[0], aTexture[0], aDelay[0], aResonator[0], aFoldFilter[0], aFormant[0], aTremolo[0], aCrusher[0], aFreqShift[0], aGranular[0]]);
-        wetR = Select.ar(eff, [dry[1], aFilter[1], aEq[1], aMod[1], aSpace[1], aTexture[1], aDelay[1], aResonator[1], aFoldFilter[1], aFormant[1], aTremolo[1], aCrusher[1], aFreqShift[1], aGranular[1]]);
+        // plate: brighter, tighter synthetic plate-style tail
+        pre     = LinLin.kr(p3, 0, 1, 0.0, 0.055);
+        room    = LinLin.kr(p1, 0, 1, 0.12, 0.9);
+        damp    = LinLin.kr(p2, 0, 1, 0.35, 4.8);
+        plateIn = DelayC.ar(dry, 0.06, pre);
+        aPlate  = JPverb.ar(plateIn, room, damp, LinExp.kr(p4, 0, 1, 1500, 12000), 0.4, 0.7);
+        aPlate  = LPF.ar(LeakDC.ar(aPlate), LinExp.kr(p4, 0, 1, 1600, 12000));
+
+        // early reflections only: short clustered delays, no diffuse tail
+        earlyA = DelayC.ar(dry, 0.08, LinLin.kr(p1, 0, 1, 0.004, 0.028));
+        earlyB = DelayC.ar(dry.reverse, 0.08, LinLin.kr(p2, 0, 1, 0.009, 0.041));
+        earlyC = DelayC.ar(dry, 0.08, LinLin.kr(p3, 0, 1, 0.013, 0.057));
+        earlyD = DelayC.ar(dry.reverse, 0.08, (LinLin.kr(p1, 0, 1, 0.004, 0.028) + LinLin.kr(p3, 0, 1, 0.013, 0.057) * 0.5).clip(0.002, 0.078));
+        aEarly = LPF.ar(LeakDC.ar((earlyA * 0.95) + (earlyB * 0.7) + (earlyC * 0.55) + (earlyD * 0.4)), LinExp.kr(p4, 0, 1, 1500, 12000));
+
+        // haas spread: tiny channel offset for pseudo stereo from mono sources
+        haasTime = LinLin.kr(p1, 0, 1, 0.001, 0.028);
+        haasTilt = LinLin.kr(p3, 0, 1, -0.85, 0.85);
+        aHaas = [
+          DelayC.ar(dry[0], 0.03, ((haasTime * (1 - haasTilt.max(0))) + 0.0002).clip(0.0002, 0.029)),
+          DelayC.ar(dry[1], 0.03, ((haasTime * (1 + haasTilt.min(0).abs)) + 0.0002).clip(0.0002, 0.029))
+        ];
+        aHaas = Balance2.ar(LPF.ar(aHaas[0], LinExp.kr(p4, 0, 1, 1500, 12000)), LPF.ar(aHaas[1], LinExp.kr(p4, 0, 1, 1500, 12000)), LinLin.kr(p2, 0, 1, -0.8, 0.8), 1);
+
+        wetL = Select.ar(eff, [dry[0], aFilter[0], aEq[0], aMod[0], aSpace[0], aTexture[0], aDelay[0], aResonator[0], aFoldFilter[0], aFormant[0], aTremolo[0], aCrusher[0], aFreqShift[0], aGranular[0], aPlate[0], aEarly[0], aHaas[0]]);
+        wetR = Select.ar(eff, [dry[1], aFilter[1], aEq[1], aMod[1], aSpace[1], aTexture[1], aDelay[1], aResonator[1], aFoldFilter[1], aFormant[1], aTremolo[1], aCrusher[1], aFreqShift[1], aGranular[1], aPlate[1], aEarly[1], aHaas[1]]);
 
         // Wet/dry mix: amt 0 = dry, amt 1 = fully wet
         XFade2.ar(dry, [wetL, wetR], (amt * 2) - 1)
@@ -206,13 +234,14 @@ Engine_Fadddddddder : CroneEngine {
       sceneB = {
         var amt, p1, p2, p3, p4, eff;
         var cutoff, rq, bpRq, lp12, lp24, bp12, bp24, hp12, hp24, mode, bFilter;
-        var bEq, bMod, bSpace, bTexture, bDelay, bResonator, bFoldFilter, bFormant, bTremolo, bCrusher, bFreqShift, bGranular;
+        var bEq, bMod, bSpace, bTexture, bDelay, bResonator, bFoldFilter, bFormant, bTremolo, bCrusher, bFreqShift, bGranular, bPlate, bEarly, bHaas;
         var excite, decay, tune, tone, combA, combB, base, folded, foldAmt;
         var formA, formB, formC, spread, focus;
         var tremRate, tremDepth, tremShape, tremBias, tremWave;
         var crushRate, crushBits, crushMix;
         var shiftFreq, shiftSpread;
         var grainDensity, grainSize, grainScatter, grainPitch, grainPan;
+        var pre, room, damp, earlyA, earlyB, earlyC, earlyD, haasTime, haasTilt, plateIn;
         var wetL, wetR;
 
         amt = Lag.kr(sceneBAmount.clip(0, 1), 0.08);
@@ -220,7 +249,7 @@ Engine_Fadddddddder : CroneEngine {
         p2  = Lag.kr(sceneBParam2.clip(0, 1), 0.08);
         p3  = Lag.kr(sceneBParam3.clip(0, 1), 0.08);
         p4  = Lag.kr(sceneBParam4.clip(0, 1), 0.08);
-        eff = sceneBEffect.clip(0, 13).round(1);
+        eff = sceneBEffect.clip(0, 16).round(1);
 
         cutoff = LinExp.kr(p1, 0, 1, 45, 12000);
         rq     = LinLin.kr(p2, 0, 1, 0.9, 0.06);
@@ -326,8 +355,29 @@ Engine_Fadddddddder : CroneEngine {
         bGranular    = PitchShift.ar(bGranular, 0.18, grainPitch, grainScatter * 0.08, grainScatter * 0.04);
         bGranular    = LPF.ar(LeakDC.ar((bGranular * 1.8).softclip), LinExp.kr(p4, 0, 1, 1000, 12000));
 
-        wetL = Select.ar(eff, [dry[0], bFilter[0], bEq[0], bMod[0], bSpace[0], bTexture[0], bDelay[0], bResonator[0], bFoldFilter[0], bFormant[0], bTremolo[0], bCrusher[0], bFreqShift[0], bGranular[0]]);
-        wetR = Select.ar(eff, [dry[1], bFilter[1], bEq[1], bMod[1], bSpace[1], bTexture[1], bDelay[1], bResonator[1], bFoldFilter[1], bFormant[1], bTremolo[1], bCrusher[1], bFreqShift[1], bGranular[1]]);
+        pre     = LinLin.kr(p3, 0, 1, 0.0, 0.055);
+        room    = LinLin.kr(p1, 0, 1, 0.12, 0.9);
+        damp    = LinLin.kr(p2, 0, 1, 0.35, 4.8);
+        plateIn = DelayC.ar(dry, 0.06, pre);
+        bPlate  = JPverb.ar(plateIn, room, damp, LinExp.kr(p4, 0, 1, 1500, 12000), 0.4, 0.7);
+        bPlate  = LPF.ar(LeakDC.ar(bPlate), LinExp.kr(p4, 0, 1, 1600, 12000));
+
+        earlyA = DelayC.ar(dry, 0.08, LinLin.kr(p1, 0, 1, 0.004, 0.028));
+        earlyB = DelayC.ar(dry.reverse, 0.08, LinLin.kr(p2, 0, 1, 0.009, 0.041));
+        earlyC = DelayC.ar(dry, 0.08, LinLin.kr(p3, 0, 1, 0.013, 0.057));
+        earlyD = DelayC.ar(dry.reverse, 0.08, (LinLin.kr(p1, 0, 1, 0.004, 0.028) + LinLin.kr(p3, 0, 1, 0.013, 0.057) * 0.5).clip(0.002, 0.078));
+        bEarly = LPF.ar(LeakDC.ar((earlyA * 0.95) + (earlyB * 0.7) + (earlyC * 0.55) + (earlyD * 0.4)), LinExp.kr(p4, 0, 1, 1500, 12000));
+
+        haasTime = LinLin.kr(p1, 0, 1, 0.001, 0.028);
+        haasTilt = LinLin.kr(p3, 0, 1, -0.85, 0.85);
+        bHaas = [
+          DelayC.ar(dry[0], 0.03, ((haasTime * (1 - haasTilt.max(0))) + 0.0002).clip(0.0002, 0.029)),
+          DelayC.ar(dry[1], 0.03, ((haasTime * (1 + haasTilt.min(0).abs)) + 0.0002).clip(0.0002, 0.029))
+        ];
+        bHaas = Balance2.ar(LPF.ar(bHaas[0], LinExp.kr(p4, 0, 1, 1500, 12000)), LPF.ar(bHaas[1], LinExp.kr(p4, 0, 1, 1500, 12000)), LinLin.kr(p2, 0, 1, -0.8, 0.8), 1);
+
+        wetL = Select.ar(eff, [dry[0], bFilter[0], bEq[0], bMod[0], bSpace[0], bTexture[0], bDelay[0], bResonator[0], bFoldFilter[0], bFormant[0], bTremolo[0], bCrusher[0], bFreqShift[0], bGranular[0], bPlate[0], bEarly[0], bHaas[0]]);
+        wetR = Select.ar(eff, [dry[1], bFilter[1], bEq[1], bMod[1], bSpace[1], bTexture[1], bDelay[1], bResonator[1], bFoldFilter[1], bFormant[1], bTremolo[1], bCrusher[1], bFreqShift[1], bGranular[1], bPlate[1], bEarly[1], bHaas[1]]);
 
         XFade2.ar(dry, [wetL, wetR], (amt * 2) - 1)
       }.value;
