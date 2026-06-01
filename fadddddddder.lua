@@ -385,6 +385,7 @@ local function new_scene_slot(index)
 end
 
 local function clone_slot(slot, index)
+	-- sanitize_slot returns a fresh slot for nil/non-table inputs.
 	slot = sanitize_slot(slot, index)
 	local out = { effect = slot.effect, values = {} }
 	for _, id in ipairs(effect_order) do
@@ -394,20 +395,26 @@ local function clone_slot(slot, index)
 end
 
 sanitize_slot = function(slot, index)
+	-- Reject anything that isn't a plain table (nil, strings, numbers, etc).
 	if type(slot) ~= "table" then
 		return new_scene_slot(index)
 	end
 
-	-- Migrate old engine-name strings (v1 format).
-	if legacy_effect_map[slot.effect] then
+	-- Migrate old engine-name strings saved in v1 format.
+	if type(slot.effect) ~= "string" then
+		slot.effect = nil
+	end
+	if slot.effect and legacy_effect_map[slot.effect] then
 		slot.effect = legacy_effect_map[slot.effect]
 	end
 	if not effect_index_map[slot.effect] then
 		slot.effect = index == 1 and "dub_bloom" or "thru"
 	end
 
+	-- values must be a plain table; anything else (string, nil, …) gets reset.
 	if type(slot.values) ~= "table" then
-		slot.values = {}
+		slot.values = default_effect_values()
+		return slot
 	end
 
 	for _, id in ipairs(effect_order) do
@@ -431,16 +438,23 @@ local function ensure_bank()
 		state.bank = { A = {}, B = {} }
 	end
 
-	-- Migrate old shared single-bank format: duplicate slots into both lanes.
-	if type(state.bank.A) ~= "table" or type(state.bank.B) ~= "table" then
+	-- Detect old v1 flat-array format: bank exists but bank.A does not.
+	-- In that case duplicate all slots into both lanes.
+	local a_is_table = type(state.bank.A) == "table"
+	local b_is_table = type(state.bank.B) == "table"
+	if not a_is_table or not b_is_table then
 		local shared = state.bank
 		state.bank = { A = {}, B = {} }
 		for i = 1, NUM_SCENES do
-			state.bank.A = clone_slot(shared[i], i)
-			state.bank.B = clone_slot(shared[i], i)
+			-- shared may be nil or garbage from any format; clone_slot →
+			-- sanitize_slot handles all cases.
+			local src = type(shared[i]) == "table" and shared or nil
+			state.bank.A = clone_slot(src, i)
+			state.bank.B = clone_slot(src, i)
 		end
 	end
 
+	-- Final pass: sanitize every slot in both lanes.
 	for i = 1, NUM_SCENES do
 		state.bank.A = sanitize_slot(state.bank.A[i], i)
 		state.bank.B = sanitize_slot(state.bank.B[i], i)
