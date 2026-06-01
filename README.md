@@ -93,9 +93,35 @@ After installing or updating, restart norns so it recompiles the custom engine.
 fadddddddder/
   fadddddddder.lua
   README.md
+  .gitignore
+  docs/
+    architecture.md
+    manual-smoke-test.md
   lib/
     Engine_Fadddddddder.sc
+    fadddddddder/
+      effects.lua
+      engine_adapter.lua
+      pages.lua
+      scene_model.lua
+      store.lua
 ```
+
+## Architecture
+
+The script is now organized as a small top-level entrypoint plus focused modules:
+
+- `fadddddddder.lua`: lifecycle, params, engine boot, module wiring
+- `lib/fadddddddder/effects.lua`: effect catalog and lookup tables
+- `lib/fadddddddder/scene_model.lua`: slot defaults, cloning, sanitization, cursor/value helpers
+- `lib/fadddddddder/store.lua`: bank migration, load/save, pending-save debounce
+- `lib/fadddddddder/engine_adapter.lua`: Lua-to-engine sync
+- `lib/fadddddddder/pages.lua`: page navigation, input handling, and redraw logic
+
+For maintainer-focused details, see:
+
+- `docs/architecture.md`
+- `docs/manual-smoke-test.md`
 
 ## Persistence
 
