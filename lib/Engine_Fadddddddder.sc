@@ -116,9 +116,13 @@ revBuf   = LocalBuf(SampleRate.ir * 1.0, 2).clear;
 revRate  = LinLin.kr(p2, 0, 1, 0.5, 1.5);
 revTrig  = Impulse.kr(LinExp.kr(p1, 0, 1, 6, 0.7));   // segment rate
 RecordBuf.ar(dry, revBuf, 0, 1, 0, 1, 1, 1, revTrig);
-revPhase = Sweep.ar(revTrig, BufFrames.kr(revBuf) * revRate * -1) + BufFrames.kr(revBuf);
-aReverse = BufRd.ar(2, revBuf, revPhase.wrap(0, BufFrames.kr(revBuf)), 0, 4);
+revPhase = Phasor.ar(revTrig,
+    BufRateScale.kr(revBuf) * revRate * -1,
+    0, BufFrames.kr(revBuf),
+    BufFrames.kr(revBuf));
+aReverse = BufRd.ar(2, revBuf, revPhase, 1, 4);
 aReverse = LPF.ar(LeakDC.ar(aReverse), LinExp.kr(p4, 0, 1, 1200, 12000));
+aReverse = aReverse.clip2(1.0);
 
 // ---- 22 slapback: single short repeat, no feedback ----
 // p1 = time (40-180ms), p4 = tone, p3 = repeat level
@@ -384,9 +388,13 @@ aAutoWah = LeakDC.ar(RLPF.ar(dry, Lag.kr(awCut, 0.02), awRes) * 1.4);
         revRate  = LinLin.kr(p2, 0, 1, 0.5, 1.5);
         revTrig  = Impulse.kr(LinExp.kr(p1, 0, 1, 6, 0.7));  // segment rate
         RecordBuf.ar(dry, revBuf, 0, 1, 0, 1, 1, 1, revTrig);
-        revPhase = Sweep.ar(revTrig, BufFrames.kr(revBuf) * revRate * -1) + BufFrames.kr(revBuf);
-        bReverse = BufRd.ar(2, revBuf, revPhase.wrap(0, BufFrames.kr(revBuf)), 0, 4);
+        revPhase = Phasor.ar(revTrig,
+            BufRateScale.kr(revBuf) * revRate * -1,
+            0, BufFrames.kr(revBuf),
+            BufFrames.kr(revBuf));
+        bReverse = BufRd.ar(2, revBuf, revPhase, 1, 4);
         bReverse = LPF.ar(LeakDC.ar(bReverse), LinExp.kr(p4, 0, 1, 1200, 12000));
+        bReverse = bReverse.clip2(1.0);
 
         // ---- 22 slapback: single short repeat, no feedback ----
         // p1 = time (40-180ms), p4 = tone, p3 = repeat level
@@ -586,7 +594,9 @@ aAutoWah = LeakDC.ar(RLPF.ar(dry, Lag.kr(awCut, 0.02), awRes) * 1.4);
       xfadeLag = Lag.kr(xfade.clip(0, 1), 0.05);
       sig = XFade2.ar(sceneA, sceneB, (xfadeLag * 2) - 1);
       sig = sig * Lag.kr(outputAmp, 0.05);
-      Out.ar(out, LeakDC.ar(Limiter.ar(sig, 0.98)));
+      sig = LeakDC.ar(Limiter.ar(sig, 0.98));
+      sig = Select.ar(CheckBadValues.ar(sig, 0, 0) > 0, [sig, DC.ar(0)]);
+      Out.ar(out, sig);
 
     }).add;
 
