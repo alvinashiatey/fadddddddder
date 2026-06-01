@@ -7,8 +7,11 @@
 //   2 = eq      (BPeakEQ parametric)
 //   3 = mod     (chorus/flanger DelayC + SinOsc)
 //   4 = space   (FreeVerb2)
-//   5 = texture (AM ring-mod via SinOsc, tanh saturation)
-//   6 = delay   (CombC + LPF tone control)
+//   5 = texture    (AM ring-mod via SinOsc, tanh saturation)
+//   6 = delay      (CombC + LPF tone control)
+//   7 = resonator  (comb / karplus-style metallic ringing)
+//   8 = foldFilter (multimode filter with folded resonance path)
+//   9 = formant    (stacked bandpasses / vowel-like tone)
 //
 // param1–param4 are always normalised 0–1; each effect branch maps them
 // to musically useful ranges internally.
@@ -50,7 +53,9 @@ Engine_Fadddddddder : CroneEngine {
       sceneA = {
         var amt, p1, p2, p3, p4, eff;
         var cutoff, rq, bpRq, lp12, lp24, bp12, bp24, hp12, hp24, mode, aFilter;
-        var aEq, aMod, aSpace, aTexture, aDelay;
+        var aEq, aMod, aSpace, aTexture, aDelay, aResonator, aFoldFilter, aFormant;
+        var excite, decay, tune, tone, combA, combB, base, folded, foldAmt;
+        var formA, formB, formC, spread, focus;
         var wetL, wetR;
 
         amt = Lag.kr(sceneAAmount.clip(0, 1), 0.08);
@@ -61,7 +66,7 @@ Engine_Fadddddddder : CroneEngine {
         // Do NOT lag the effect index — interpolating between integer slots
         // causes SelectX to blend between unrelated algorithms and produces
         // unpredictable artefacts.  Round to the nearest integer instead.
-        eff = sceneAEffect.clip(0, 6).round(1);
+        eff = sceneAEffect.clip(0, 9).round(1);
 
         // filter: cutoff, resonance, mode (lp/bp/hp), slope (12/24dB)
         cutoff = LinExp.kr(p1, 0, 1, 45, 12000);
@@ -118,8 +123,39 @@ Engine_Fadddddddder : CroneEngine {
           LinExp.kr(p4, 0, 1, 900, 12000)
         );
 
-        wetL = Select.ar(eff, [dry[0], aFilter[0], aEq[0], aMod[0], aSpace[0], aTexture[0], aDelay]);
-        wetR = Select.ar(eff, [dry[1], aFilter[1], aEq[1], aMod[1], aSpace[1], aTexture[1], aDelay]);
+        // resonator: tuned metallic ringing / karplus textures
+        tune   = LinExp.kr(p1, 0, 1, 0.003, 0.045);
+        decay  = LinLin.kr(p2, 0, 1, 0.25, 6.5);
+        excite = LinLin.kr(p3, 0, 1, 0.15, 1.4);
+        tone   = LinExp.kr(p4, 0, 1, 900, 12000);
+        combA  = CombC.ar(HPF.ar(dry * excite, 50), 0.08, tune, decay);
+        combB  = CombC.ar(HPF.ar(dry * (excite * 0.8), 50), 0.08, (tune * 1.37).clip(0.003, 0.079), decay * 0.72);
+        aResonator = LeakDC.ar(LPF.ar((combA + (combB * 0.7)).softclip, tone));
+
+        // folded filter: multimode filter plus folded resonance path
+        base = [
+          SelectX.ar(mode, [lp24[0], bp24[0], hp24[0]]),
+          SelectX.ar(mode, [lp24[1], bp24[1], hp24[1]])
+        ];
+        foldAmt = LinLin.kr(p4, 0, 1, 0.2, 8.0);
+        folded = Fold.ar(BPF.ar(dry, cutoff, bpRq) * LinLin.kr(p2, 0, 1, 0.6, 10.0) * foldAmt, -1, 1);
+        aFoldFilter = LeakDC.ar((base * 0.8) + (folded * 0.55));
+
+        // formant: 3 staggered bandpasses for vowel-like tone
+        formA  = LinExp.kr(p1, 0, 1, 250, 900);
+        spread = LinLin.kr(p2, 0, 1, 1.2, 3.1);
+        focus  = LinLin.kr(p3, 0, 1, 0.22, 0.05);
+        formB  = (formA * spread).clip(400, 2800);
+        formC  = (formB * 1.75).clip(700, 5200);
+        aFormant = LeakDC.ar(LPF.ar(
+          (BPF.ar(dry, formA, focus) * 1.2)
+          + (BPF.ar(dry, formB, focus * 0.8) * 0.95)
+          + (BPF.ar(dry, formC, focus * 0.65) * 0.7),
+          LinExp.kr(p4, 0, 1, 1400, 12000)
+        ));
+
+        wetL = Select.ar(eff, [dry[0], aFilter[0], aEq[0], aMod[0], aSpace[0], aTexture[0], aDelay[0], aResonator[0], aFoldFilter[0], aFormant[0]]);
+        wetR = Select.ar(eff, [dry[1], aFilter[1], aEq[1], aMod[1], aSpace[1], aTexture[1], aDelay[1], aResonator[1], aFoldFilter[1], aFormant[1]]);
 
         // Wet/dry mix: amt 0 = dry, amt 1 = fully wet
         XFade2.ar(dry, [wetL, wetR], (amt * 2) - 1)
@@ -129,7 +165,9 @@ Engine_Fadddddddder : CroneEngine {
       sceneB = {
         var amt, p1, p2, p3, p4, eff;
         var cutoff, rq, bpRq, lp12, lp24, bp12, bp24, hp12, hp24, mode, bFilter;
-        var bEq, bMod, bSpace, bTexture, bDelay;
+        var bEq, bMod, bSpace, bTexture, bDelay, bResonator, bFoldFilter, bFormant;
+        var excite, decay, tune, tone, combA, combB, base, folded, foldAmt;
+        var formA, formB, formC, spread, focus;
         var wetL, wetR;
 
         amt = Lag.kr(sceneBAmount.clip(0, 1), 0.08);
@@ -137,7 +175,7 @@ Engine_Fadddddddder : CroneEngine {
         p2  = Lag.kr(sceneBParam2.clip(0, 1), 0.08);
         p3  = Lag.kr(sceneBParam3.clip(0, 1), 0.08);
         p4  = Lag.kr(sceneBParam4.clip(0, 1), 0.08);
-        eff = sceneBEffect.clip(0, 6).round(1);
+        eff = sceneBEffect.clip(0, 9).round(1);
 
         cutoff = LinExp.kr(p1, 0, 1, 45, 12000);
         rq     = LinLin.kr(p2, 0, 1, 0.9, 0.06);
@@ -186,8 +224,36 @@ Engine_Fadddddddder : CroneEngine {
           LinExp.kr(p4, 0, 1, 900, 12000)
         );
 
-        wetL = Select.ar(eff, [dry[0], bFilter[0], bEq[0], bMod[0], bSpace[0], bTexture[0], bDelay]);
-        wetR = Select.ar(eff, [dry[1], bFilter[1], bEq[1], bMod[1], bSpace[1], bTexture[1], bDelay]);
+        tune   = LinExp.kr(p1, 0, 1, 0.003, 0.045);
+        decay  = LinLin.kr(p2, 0, 1, 0.25, 6.5);
+        excite = LinLin.kr(p3, 0, 1, 0.15, 1.4);
+        tone   = LinExp.kr(p4, 0, 1, 900, 12000);
+        combA  = CombC.ar(HPF.ar(dry * excite, 50), 0.08, tune, decay);
+        combB  = CombC.ar(HPF.ar(dry * (excite * 0.8), 50), 0.08, (tune * 1.37).clip(0.003, 0.079), decay * 0.72);
+        bResonator = LeakDC.ar(LPF.ar((combA + (combB * 0.7)).softclip, tone));
+
+        base = [
+          SelectX.ar(mode, [lp24[0], bp24[0], hp24[0]]),
+          SelectX.ar(mode, [lp24[1], bp24[1], hp24[1]])
+        ];
+        foldAmt = LinLin.kr(p4, 0, 1, 0.2, 8.0);
+        folded = Fold.ar(BPF.ar(dry, cutoff, bpRq) * LinLin.kr(p2, 0, 1, 0.6, 10.0) * foldAmt, -1, 1);
+        bFoldFilter = LeakDC.ar((base * 0.8) + (folded * 0.55));
+
+        formA  = LinExp.kr(p1, 0, 1, 250, 900);
+        spread = LinLin.kr(p2, 0, 1, 1.2, 3.1);
+        focus  = LinLin.kr(p3, 0, 1, 0.22, 0.05);
+        formB  = (formA * spread).clip(400, 2800);
+        formC  = (formB * 1.75).clip(700, 5200);
+        bFormant = LeakDC.ar(LPF.ar(
+          (BPF.ar(dry, formA, focus) * 1.2)
+          + (BPF.ar(dry, formB, focus * 0.8) * 0.95)
+          + (BPF.ar(dry, formC, focus * 0.65) * 0.7),
+          LinExp.kr(p4, 0, 1, 1400, 12000)
+        ));
+
+        wetL = Select.ar(eff, [dry[0], bFilter[0], bEq[0], bMod[0], bSpace[0], bTexture[0], bDelay[0], bResonator[0], bFoldFilter[0], bFormant[0]]);
+        wetR = Select.ar(eff, [dry[1], bFilter[1], bEq[1], bMod[1], bSpace[1], bTexture[1], bDelay[1], bResonator[1], bFoldFilter[1], bFormant[1]]);
 
         XFade2.ar(dry, [wetL, wetR], (amt * 2) - 1)
       }.value;
