@@ -22,6 +22,12 @@
 //  17 = tapeSat    (soft-knee tape-ish saturation)
 //  18 = transient  (attack/sustain contour shaper)
 //  19 = multiclip  (multiband soft clipper)
+//  20 = pitchShift   (PitchShift harmoniser / detune / octave)
+//  21 = reverse      (LocalBuf record + reverse playback)
+//  22 = slapback     (single short echo, no feedback)
+//  23 = convReverb   (Convolution2 with short generated impulse)
+//  24 = spectralFreeze(FFT PV_MagFreeze smear / freeze)
+//  25 = autoWah      (amplitude follower into filter cutoff)
 //
 // param1–param4 are always normalised 0–1; each effect branch maps them
 // to musically useful ranges internally.
@@ -64,6 +70,13 @@ Engine_Fadddddddder : CroneEngine {
         var amt, p1, p2, p3, p4, eff;
         var cutoff, rq, bpRq, lp12, lp24, bp12, bp24, hp12, hp24, mode, aFilter;
         var aEq, aMod, aSpace, aTexture, aDelay, aResonator, aFoldFilter, aFormant, aTremolo, aCrusher, aFreqShift, aGranular, aPlate, aEarly, aHaas, aTapeSat, aTransient, aMulticlip;
+        var aPitch, aReverse, aSlapback, aConv, aSpectral, aAutoWah;
+        var psPitch, psWindow, psDisp, psWet;
+        var revBuf, revPhase, revTrig, revRate, revMix;
+        var slapTime, slapTone, slapMix;
+        var convBuf, convDecay, convDens, convWet;
+        var fftBuf, fftChain, freezeAmt, smearAmt, specWet;
+        var awEnv, awFloor, awRange, awCut, awRes, awMix; 
         var excite, decay, tune, tone, combA, combB, base, folded, foldAmt;
         var formA, formB, formC, spread, focus;
         var tremRate, tremDepth, tremShape, tremBias, tremWave;
@@ -83,7 +96,69 @@ Engine_Fadddddddder : CroneEngine {
         // Do NOT lag the effect index — interpolating between integer slots
         // causes SelectX to blend between unrelated algorithms and produces
         // unpredictable artefacts.  Round to the nearest integer instead.
-        eff = sceneAEffect.clip(0, 19).round(1);
+        eff = sceneAEffect.clip(0, 25).round(1);
+
+        // ---- 20 pitchShift: harmoniser / detune / octave ----
+// p1 = pitch ratio (octave down → octave up), p2 = detune spread,
+// p3 = dry+harmony blend (parallel interval), p4 = tone
+psPitch  = LinExp.kr(p1, 0, 1, 0.5, 2.0);          // -1oct .. +1oct
+psWindow = 0.2;
+psDisp   = LinLin.kr(p2, 0, 1, 0.0, 0.05);
+aPitch   = PitchShift.ar(dry, psWindow, psPitch, psDisp, psDisp * 0.5);
+// optional parallel harmony voice mixed in via p3
+psWet    = aPitch + (PitchShift.ar(dry, psWindow,
+                (psPitch * 1.5).clip(0.5, 2.0), psDisp, psDisp) * LinLin.kr(p3, 0, 1, 0.0, 0.9));
+aPitch   = LPF.ar(LeakDC.ar(psWet), LinExp.kr(p4, 0, 1, 1200, 12000));
+
+// ---- 21 reverse: record into LocalBuf, play backwards ----
+// p1 = segment length, p2 = playback rate, p4 = tone
+revBuf   = LocalBuf(SampleRate.ir * 1.0, 2).clear;
+revRate  = LinLin.kr(p2, 0, 1, 0.5, 1.5);
+revTrig  = Impulse.kr(LinExp.kr(p1, 0, 1, 6, 0.7));   // segment rate
+RecordBuf.ar(dry, revBuf, 0, 1, 0, 1, 1, 1, revTrig);
+revPhase = Sweep.ar(revTrig, BufFrames.kr(revBuf) * revRate * -1) + BufFrames.kr(revBuf);
+aReverse = BufRd.ar(2, revBuf, revPhase.wrap(0, BufFrames.kr(revBuf)), 0, 4);
+aReverse = LPF.ar(LeakDC.ar(aReverse), LinExp.kr(p4, 0, 1, 1200, 12000));
+
+// ---- 22 slapback: single short repeat, no feedback ----
+// p1 = time (40-180ms), p4 = tone, p3 = repeat level
+slapTime = LinLin.kr(p1, 0, 1, 0.04, 0.18);
+slapTone = LinExp.kr(p4, 0, 1, 1200, 9000);
+aSlapback = dry + (LPF.ar(DelayC.ar(dry, 0.25, slapTime), slapTone)
+            * LinLin.kr(p3, 0, 1, 0.3, 0.95));
+aSlapback = LeakDC.ar(aSlapback);
+
+// ---- 23 convReverb: Convolution2 with short generated impulse ----
+// p1 = impulse decay (size), p2 = density, p4 = tone
+// ---- 23 convReverb: Convolution2 with short generated impulse ----
+convDecay = LinLin.kr(p1, 0, 1, 0.05, 0.4);
+convDens  = LinLin.kr(p2, 0, 1, 0.3, 1.0);
+convBuf   = LocalBuf(2048, 1);
+RecordBuf.ar(
+    WhiteNoise.ar * Decay2.ar(Impulse.ar(0), 0.001, convDecay),
+    convBuf, loop: 0);
+aConv = Convolution2.ar(Mix.ar(dry) * convDens, convBuf, Impulse.kr(0), 2048);
+aConv = LPF.ar(LeakDC.ar([aConv, aConv]), LinExp.kr(p4, 0, 1, 1500, 11000));
+
+// ---- 24 spectralFreeze: PV_MagFreeze smear / freeze ----
+// p1 = freeze gate, p2 = smear amount (PV_MagSmear), p4 = tone
+freezeAmt = (p1 > 0.5);    // > 50% = frozen
+smearAmt  = LinLin.kr(p2, 0, 1, 0, 16).round(1);
+fftBuf    = LocalBuf(2048, 1);
+fftChain  = FFT(fftBuf, Mix.ar(dry));
+fftChain  = PV_MagSmear(fftChain, smearAmt);
+fftChain  = PV_MagFreeze(fftChain, freezeAmt);
+aSpectral = IFFT(fftChain).dup;
+aSpectral = LPF.ar(LeakDC.ar(aSpectral), LinExp.kr(p4, 0, 1, 1400, 12000));
+
+// ---- 25 autoWah: amplitude follower into filter cutoff ----
+// p1 = sensitivity, p2 = range, p3 = resonance, p4 = base cutoff
+awEnv   = Amplitude.kr(Mix.ar(dry), 0.01, 0.15) * LinLin.kr(p1, 0, 1, 2, 30);
+awFloor = LinExp.kr(p4, 0, 1, 120, 800);
+awRange = LinExp.kr(p2, 0, 1, 400, 6000);
+awCut   = (awFloor + (awEnv * awRange)).clip(80, 12000);
+awRes   = LinLin.kr(p3, 0, 1, 0.6, 0.08);
+aAutoWah = LeakDC.ar(RLPF.ar(dry, Lag.kr(awCut, 0.02), awRes) * 1.4);
 
         // filter: cutoff, resonance, mode (lp/bp/hp), slope (12/24dB)
         cutoff = LinExp.kr(p1, 0, 1, 45, 12000);
@@ -254,8 +329,8 @@ Engine_Fadddddddder : CroneEngine {
         aMulticlip = ((low * lowDrive).softclip * 0.9) + ((mid * midDrive).softclip) + ((high * highDrive).softclip * 0.85);
         aMulticlip = LPF.ar(aMulticlip * LinLin.kr(p3, 0, 1, 0.3, 1.0), LinExp.kr(p4, 0, 1, 1300, 12000));
 
-        wetL = Select.ar(eff, [dry[0], aFilter[0], aEq[0], aMod[0], aSpace[0], aTexture[0], aDelay[0], aResonator[0], aFoldFilter[0], aFormant[0], aTremolo[0], aCrusher[0], aFreqShift[0], aGranular[0], aPlate[0], aEarly[0], aHaas[0], aTapeSat[0], aTransient[0], aMulticlip[0]]);
-        wetR = Select.ar(eff, [dry[1], aFilter[1], aEq[1], aMod[1], aSpace[1], aTexture[1], aDelay[1], aResonator[1], aFoldFilter[1], aFormant[1], aTremolo[1], aCrusher[1], aFreqShift[1], aGranular[1], aPlate[1], aEarly[1], aHaas[1], aTapeSat[1], aTransient[1], aMulticlip[1]]);
+        wetL = Select.ar(eff, [dry[0], aFilter[0], aEq[0], aMod[0], aSpace[0], aTexture[0], aDelay[0], aResonator[0], aFoldFilter[0], aFormant[0], aTremolo[0], aCrusher[0], aFreqShift[0], aGranular[0], aPlate[0], aEarly[0], aHaas[0], aTapeSat[0], aTransient[0], aMulticlip[0], aPitch[0], aReverse[0], aSlapback[0], aConv[0], aSpectral[0], aAutoWah[0]]);
+        wetR = Select.ar(eff, [dry[1], aFilter[1], aEq[1], aMod[1], aSpace[1], aTexture[1], aDelay[1], aResonator[1], aFoldFilter[1], aFormant[1], aTremolo[1], aCrusher[1], aFreqShift[1], aGranular[1], aPlate[1], aEarly[1], aHaas[1], aTapeSat[1], aTransient[1], aMulticlip[1], aPitch[1], aReverse[1], aSlapback[1], aConv[1], aSpectral[1], aAutoWah[1]]);
 
         // Wet/dry mix: amt 0 = dry, amt 1 = fully wet
         XFade2.ar(dry, [wetL, wetR], (amt * 2) - 1)
@@ -266,6 +341,13 @@ Engine_Fadddddddder : CroneEngine {
         var amt, p1, p2, p3, p4, eff;
         var cutoff, rq, bpRq, lp12, lp24, bp12, bp24, hp12, hp24, mode, bFilter;
         var bEq, bMod, bSpace, bTexture, bDelay, bResonator, bFoldFilter, bFormant, bTremolo, bCrusher, bFreqShift, bGranular, bPlate, bEarly, bHaas, bTapeSat, bTransient, bMulticlip;
+        var bPitch, bReverse, bSlapback, bConv, bSpectral, bAutoWah;
+        var psPitch, psWindow, psDisp, psWet;
+        var revBuf, revPhase, revTrig, revRate, revMix;
+        var slapTime, slapTone, slapMix;
+        var convBuf, convDecay, convDens, convWet;
+        var fftBuf, fftChain, freezeAmt, smearAmt, specWet;
+        var awEnv, awFloor, awRange, awCut, awRes, awMix;
         var excite, decay, tune, tone, combA, combB, base, folded, foldAmt;
         var formA, formB, formC, spread, focus;
         var tremRate, tremDepth, tremShape, tremBias, tremWave;
@@ -282,7 +364,69 @@ Engine_Fadddddddder : CroneEngine {
         p2  = Lag.kr(sceneBParam2.clip(0, 1), 0.08);
         p3  = Lag.kr(sceneBParam3.clip(0, 1), 0.08);
         p4  = Lag.kr(sceneBParam4.clip(0, 1), 0.08);
-        eff = sceneBEffect.clip(0, 19).round(1);
+        eff = sceneBEffect.clip(0, 25).round(1);
+
+        // ---- 20 pitchShift: harmoniser / detune / octave ----
+        // p1 = pitch ratio (octave down → octave up), p2 = detune spread,
+        // p3 = dry+harmony blend (parallel interval), p4 = tone
+        psPitch  = LinExp.kr(p1, 0, 1, 0.5, 2.0);          // -1oct .. +1oct
+        psWindow = 0.2;
+        psDisp   = LinLin.kr(p2, 0, 1, 0.0, 0.05);
+        bPitch   = PitchShift.ar(dry, psWindow, psPitch, psDisp, psDisp * 0.5);
+        // optional parallel harmony voice mixed in via p3
+        psWet    = bPitch + (PitchShift.ar(dry, psWindow,
+                        (psPitch * 1.5).clip(0.5, 2.0), psDisp, psDisp) * LinLin.kr(p3, 0, 1, 0.0, 0.9));
+        bPitch   = LPF.ar(LeakDC.ar(psWet), LinExp.kr(p4, 0, 1, 1200, 12000));
+
+        // ---- 21 reverse: record into LocalBuf, play backwards ----
+        // p1 = segment length, p2 = playback rate, p4 = tone
+        revBuf   = LocalBuf(SampleRate.ir * 1.0, 2).clear;
+        revRate  = LinLin.kr(p2, 0, 1, 0.5, 1.5);
+        revTrig  = Impulse.kr(LinExp.kr(p1, 0, 1, 6, 0.7));  // segment rate
+        RecordBuf.ar(dry, revBuf, 0, 1, 0, 1, 1, 1, revTrig);
+        revPhase = Sweep.ar(revTrig, BufFrames.kr(revBuf) * revRate * -1) + BufFrames.kr(revBuf);
+        bReverse = BufRd.ar(2, revBuf, revPhase.wrap(0, BufFrames.kr(revBuf)), 0, 4);
+        bReverse = LPF.ar(LeakDC.ar(bReverse), LinExp.kr(p4, 0, 1, 1200, 12000));
+
+        // ---- 22 slapback: single short repeat, no feedback ----
+        // p1 = time (40-180ms), p4 = tone, p3 = repeat level
+        slapTime = LinLin.kr(p1, 0, 1, 0.04, 0.18);
+        slapTone = LinExp.kr(p4, 0, 1, 1200, 9000);
+        bSlapback = dry + (LPF.ar(DelayC.ar(dry, 0.25, slapTime), slapTone)
+                    * LinLin.kr(p3, 0, 1, 0.3, 0.95));
+        bSlapback = LeakDC.ar(bSlapback);
+
+        // ---- 23 convReverb: Convolution2 with short generated impulse ----
+        // p1 = impulse decay (size), p2 = density, p4 = tone
+
+        convDecay = LinLin.kr(p1, 0, 1, 0.05, 0.4);
+        convDens  = LinLin.kr(p2, 0, 1, 0.3, 1.0);
+        convBuf   = LocalBuf(2048, 1);
+        RecordBuf.ar(
+            WhiteNoise.ar * Decay2.ar(Impulse.ar(0), 0.001, convDecay),
+            convBuf, loop: 0);
+        bConv = Convolution2.ar(Mix.ar(dry) * convDens, convBuf, Impulse.kr(0), 2048);
+        bConv = LPF.ar(LeakDC.ar([bConv, bConv]), LinExp.kr(p4, 0, 1, 1500, 11000));
+
+        // ---- 24 spectralFreeze: PV_MagFreeze smear / freeze ----
+        // p1 = freeze gate, p2 = smear amount (PV_MagSmear), p4 = tone
+        freezeAmt = (p1 > 0.5);   // > 50% = frozen, < 50% = live
+        smearAmt = LinLin.kr(p2, 0, 1, 0, 16).round(1);
+        fftBuf = LocalBuf(2048, 1);
+        fftChain = FFT(fftBuf, Mix.ar(dry));
+        fftChain = PV_MagSmear(fftChain, smearAmt);
+        fftChain = PV_MagFreeze(fftChain, freezeAmt);
+        bSpectral = IFFT(fftChain).dup;
+        bSpectral = LPF.ar(LeakDC.ar(bSpectral), LinExp.kr(p4, 0, 1, 1400, 12000));
+
+        // ---- 25 autoWah: amplitude follower into filter cutoff ----
+        // p1 = sensitivity, p2 = range, p3 = resonance, p4 = base cutoff
+        awEnv   = Amplitude.kr(Mix.ar(dry), 0.01, 0.15) * LinLin.kr(p1, 0, 1, 2, 30);
+        awFloor = LinExp.kr(p4, 0, 1, 120, 800);
+        awRange = LinExp.kr(p2, 0, 1, 400, 6000);
+        awCut   = (awFloor + (awEnv * awRange)).clip(80, 12000);
+        awRes  = LinLin.kr(p3, 0, 1, 0.6, 0.08);
+        bAutoWah = LeakDC.ar(RLPF.ar(dry, Lag.kr(awCut, 0.02), awRes) * 1.4);
 
         cutoff = LinExp.kr(p1, 0, 1, 45, 12000);
         rq     = LinLin.kr(p2, 0, 1, 0.9, 0.06);
@@ -432,8 +576,8 @@ Engine_Fadddddddder : CroneEngine {
         bMulticlip = ((low * lowDrive).softclip * 0.9) + ((mid * midDrive).softclip) + ((high * highDrive).softclip * 0.85);
         bMulticlip = LPF.ar(bMulticlip * LinLin.kr(p3, 0, 1, 0.3, 1.0), LinExp.kr(p4, 0, 1, 1300, 12000));
 
-        wetL = Select.ar(eff, [dry[0], bFilter[0], bEq[0], bMod[0], bSpace[0], bTexture[0], bDelay[0], bResonator[0], bFoldFilter[0], bFormant[0], bTremolo[0], bCrusher[0], bFreqShift[0], bGranular[0], bPlate[0], bEarly[0], bHaas[0], bTapeSat[0], bTransient[0], bMulticlip[0]]);
-        wetR = Select.ar(eff, [dry[1], bFilter[1], bEq[1], bMod[1], bSpace[1], bTexture[1], bDelay[1], bResonator[1], bFoldFilter[1], bFormant[1], bTremolo[1], bCrusher[1], bFreqShift[1], bGranular[1], bPlate[1], bEarly[1], bHaas[1], bTapeSat[1], bTransient[1], bMulticlip[1]]);
+        wetL = Select.ar(eff, [dry[0], bFilter[0], bEq[0], bMod[0], bSpace[0], bTexture[0], bDelay[0], bResonator[0], bFoldFilter[0], bFormant[0], bTremolo[0], bCrusher[0], bFreqShift[0], bGranular[0], bPlate[0], bEarly[0], bHaas[0], bTapeSat[0], bTransient[0], bMulticlip[0], bPitch[0], bReverse[0], bSlapback[0], bConv[0], bSpectral[0], bAutoWah[0]]);
+        wetR = Select.ar(eff, [dry[1], bFilter[1], bEq[1], bMod[1], bSpace[1], bTexture[1], bDelay[1], bResonator[1], bFoldFilter[1], bFormant[1], bTremolo[1], bCrusher[1], bFreqShift[1], bGranular[1], bPlate[1], bEarly[1], bHaas[1], bTapeSat[1], bTransient[1], bMulticlip[1], bPitch[1], bReverse[1], bSlapback[1], bConv[1], bSpectral[1], bAutoWah[1]]);
 
         XFade2.ar(dry, [wetL, wetR], (amt * 2) - 1)
       }.value;
