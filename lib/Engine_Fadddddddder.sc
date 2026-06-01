@@ -17,7 +17,9 @@ Engine_Fadddddddder : CroneEngine {
     |
       var dry, sig,
       aAmt, aP1, aP2, aP3, aP4, aEff, aThru, aFilter, aEq, aMod, aSpace, aTexture, aDelay, aL, aR, sceneA,
-      bAmt, bP1, bP2, bP3, bP4, bEff, bThru, bFilter, bEq, bMod, bSpace, bTexture, bDelay, bL, bR, sceneB;
+      bAmt, bP1, bP2, bP3, bP4, bEff, bThru, bFilter, bEq, bMod, bSpace, bTexture, bDelay, bL, bR, sceneB,
+      aCutoff, aRq, aBpRq, aLp12, aLp24, aBp12, aBp24, aHp12, aHp24, aMode,
+      bCutoff, bRq, bBpRq, bLp12, bLp24, bBp12, bBp24, bHp12, bHp24, bMode;
 
       dry = [In.ar(inL), In.ar(inR)] * Lag.kr(inputAmp, 0.05);
 
@@ -29,7 +31,20 @@ Engine_Fadddddddder : CroneEngine {
       aEff = Lag.kr(sceneAEffect.clip(0, 6), 0.05);
 
       aThru = dry;
-      aFilter = RLPF.ar(dry, LinExp.kr(aP1, 0, 1, 80, 12000), LinLin.kr(aP2, 0, 1, 0.9, 0.12));
+      aCutoff = LinExp.kr(aP1, 0, 1, 45, 12000);
+      aRq = LinLin.kr(aP2, 0, 1, 0.9, 0.06);
+      aBpRq = Clip.kr(aRq, 0.08, 1.0);
+      aLp12 = RLPF.ar(dry, aCutoff, aRq);
+      aLp24 = RLPF.ar(aLp12, aCutoff, aRq);
+      aBp12 = BPF.ar(dry, aCutoff, aBpRq);
+      aBp24 = BPF.ar(aBp12, aCutoff, aBpRq);
+      aHp12 = RHPF.ar(dry, aCutoff, aRq);
+      aHp24 = RHPF.ar(aHp12, aCutoff, aRq);
+      aMode = aP3 * 2;
+      aFilter = [
+        SelectX.ar(aMode, [XFade2.ar(aLp12[0], aLp24[0], (aP4 * 2) - 1), XFade2.ar(aBp12[0], aBp24[0], (aP4 * 2) - 1), XFade2.ar(aHp12[0], aHp24[0], (aP4 * 2) - 1)]),
+        SelectX.ar(aMode, [XFade2.ar(aLp12[1], aLp24[1], (aP4 * 2) - 1), XFade2.ar(aBp12[1], aBp24[1], (aP4 * 2) - 1), XFade2.ar(aHp12[1], aHp24[1], (aP4 * 2) - 1)])
+      ];
       aEq = BPeakEQ.ar(dry, LinExp.kr(aP1, 0, 1, 90, 9000), LinExp.kr(aP3, 0, 1, 0.4, 5), LinLin.kr(aP2, 0, 1, -15, 15));
       aMod = DelayC.ar(dry, 0.06, SinOsc.kr(LinLin.kr(aP1, 0, 1, 0.05, 4), [0, 1.5708], LinLin.kr(aP2, 0, 1, 0.001, 0.018), 0.006));
       aSpace = FreeVerb2.ar(dry[0], dry[1], 1, LinLin.kr(aP1, 0, 1, 0.15, 0.95), LinLin.kr(aP2, 0, 1, 0.1, 0.85));
@@ -47,7 +62,20 @@ Engine_Fadddddddder : CroneEngine {
       bEff = Lag.kr(sceneBEffect.clip(0, 6), 0.05);
 
       bThru = dry;
-      bFilter = RLPF.ar(dry, LinExp.kr(bP1, 0, 1, 80, 12000), LinLin.kr(bP2, 0, 1, 0.9, 0.12));
+      bCutoff = LinExp.kr(bP1, 0, 1, 45, 12000);
+      bRq = LinLin.kr(bP2, 0, 1, 0.9, 0.06);
+      bBpRq = Clip.kr(bRq, 0.08, 1.0);
+      bLp12 = RLPF.ar(dry, bCutoff, bRq);
+      bLp24 = RLPF.ar(bLp12, bCutoff, bRq);
+      bBp12 = BPF.ar(dry, bCutoff, bBpRq);
+      bBp24 = BPF.ar(bBp12, bCutoff, bBpRq);
+      bHp12 = RHPF.ar(dry, bCutoff, bRq);
+      bHp24 = RHPF.ar(bHp12, bCutoff, bRq);
+      bMode = bP3 * 2;
+      bFilter = [
+        SelectX.ar(bMode, [XFade2.ar(bLp12[0], bLp24[0], (bP4 * 2) - 1), XFade2.ar(bBp12[0], bBp24[0], (bP4 * 2) - 1), XFade2.ar(bHp12[0], bHp24[0], (bP4 * 2) - 1)]),
+        SelectX.ar(bMode, [XFade2.ar(bLp12[1], bLp24[1], (bP4 * 2) - 1), XFade2.ar(bBp12[1], bBp24[1], (bP4 * 2) - 1), XFade2.ar(bHp12[1], bHp24[1], (bP4 * 2) - 1)])
+      ];
       bEq = BPeakEQ.ar(dry, LinExp.kr(bP1, 0, 1, 90, 9000), LinExp.kr(bP3, 0, 1, 0.4, 5), LinLin.kr(bP2, 0, 1, -15, 15));
       bMod = DelayC.ar(dry, 0.06, SinOsc.kr(LinLin.kr(bP1, 0, 1, 0.05, 4), [0, 1.5708], LinLin.kr(bP2, 0, 1, 0.001, 0.018), 0.006));
       bSpace = FreeVerb2.ar(dry[0], dry[1], 1, LinLin.kr(bP1, 0, 1, 0.15, 0.95), LinLin.kr(bP2, 0, 1, 0.1, 0.85));
