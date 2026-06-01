@@ -594,9 +594,7 @@ aAutoWah = LeakDC.ar(RLPF.ar(dry, Lag.kr(awCut, 0.02), awRes) * 1.4);
       xfadeLag = Lag.kr(xfade.clip(0, 1), 0.05);
       sig = XFade2.ar(sceneA, sceneB, (xfadeLag * 2) - 1);
       sig = sig * Lag.kr(outputAmp, 0.05);
-      sig = LeakDC.ar(Limiter.ar(sig, 0.98));
-      sig = Select.ar(CheckBadValues.ar(sig, 0, 0) > 0, [sig, DC.ar(0)]);
-      Out.ar(out, sig);
+      Out.ar(out, LeakDC.ar(Limiter.ar(sig, 0.98)));
 
     }).add;
 
