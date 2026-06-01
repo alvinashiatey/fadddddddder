@@ -417,18 +417,23 @@ sanitize_slot = function(slot, index)
 		return slot
 	end
 
-	for _, id in ipairs(effect_order) do
-		local defaults = default_values[id]
-		local v = slot.values[id]
-		if type(v) ~= "table" then
-			slot.values[id] = clone_values(defaults)
-		else
-			v.amount = clamp(tonumber(v.amount) or defaults.amount, 0, 1)
-			v.param1 = clamp(tonumber(v.param1) or defaults.param1, 0, 1)
-			v.param2 = clamp(tonumber(v.param2) or defaults.param2, 0, 1)
-			v.param3 = clamp(tonumber(v.param3) or defaults.param3, 0, 1)
-			v.param4 = clamp(tonumber(v.param4) or defaults.param4, 0, 1)
+	local loop_ok = pcall(function()
+		for _, id in ipairs(effect_order) do
+			local defaults = default_values[id]
+			local v = slot.values[id]
+			if type(v) ~= "table" then
+				slot.values[id] = clone_values(defaults)
+			else
+				v.amount = clamp(tonumber(v.amount) or defaults.amount, 0, 1)
+				v.param1 = clamp(tonumber(v.param1) or defaults.param1, 0, 1)
+				v.param2 = clamp(tonumber(v.param2) or defaults.param2, 0, 1)
+				v.param3 = clamp(tonumber(v.param3) or defaults.param3, 0, 1)
+				v.param4 = clamp(tonumber(v.param4) or defaults.param4, 0, 1)
+			end
 		end
+	end)
+	if not loop_ok then
+		slot.values = default_effect_values()
 	end
 	return slot
 end
@@ -477,7 +482,6 @@ local function request_save()
 end
 
 local function load_bank()
-	-- Ensure the data directory exists once at startup.
 	os.execute("mkdir -p " .. data_dir)
 	local ok, data = pcall(tabutil.load, bank_file)
 	if ok and type(data) == "table" then
@@ -485,8 +489,15 @@ local function load_bank()
 		state.xfade = data.xfade or state.xfade
 		state.bank = type(data.bank) == "table" and data.bank or state.bank
 	end
-	ensure_bank()
-	-- Immediately flush so any migrations are persisted.
+	local ok2, err = pcall(ensure_bank)
+	if not ok2 then
+		print("fadddddddder: bank load failed (" .. tostring(err) .. "), resetting to defaults")
+		os.remove(bank_file)
+		state.bank = { A = {}, B = {} }
+		state.slots = { A = 1, B = 1 }
+		state.xfade = 0.0
+		ensure_bank()
+	end
 	save_bank()
 end
 
