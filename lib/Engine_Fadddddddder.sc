@@ -135,7 +135,7 @@ convDecay = LinLin.kr(p1, 0, 1, 0.05, 0.4);
 convDens  = LinLin.kr(p2, 0, 1, 0.3, 1.0);
 convBuf   = LocalBuf(2048, 1);
 RecordBuf.ar(
-    WhiteNoise.ar * Decay2.ar(Impulse.ar(0), 0.001, convDecay),
+    WhiteNoise.ar * Decay2.ar(Impulse.kr(0), 0.001, convDecay),
     convBuf, loop: 0);
 aConv = Convolution2.ar(Mix.ar(dry) * convDens, convBuf, Impulse.kr(0), 2048);
 aConv = LPF.ar(LeakDC.ar([aConv, aConv]), LinExp.kr(p4, 0, 1, 1500, 11000));
@@ -403,7 +403,7 @@ aAutoWah = LeakDC.ar(RLPF.ar(dry, Lag.kr(awCut, 0.02), awRes) * 1.4);
         convDens  = LinLin.kr(p2, 0, 1, 0.3, 1.0);
         convBuf   = LocalBuf(2048, 1);
         RecordBuf.ar(
-            WhiteNoise.ar * Decay2.ar(Impulse.ar(0), 0.001, convDecay),
+            WhiteNoise.ar * Decay2.ar(Impulse.kr(0), 0.001, convDecay),
             convBuf, loop: 0);
         bConv = Convolution2.ar(Mix.ar(dry) * convDens, convBuf, Impulse.kr(0), 2048);
         bConv = LPF.ar(LeakDC.ar([bConv, bConv]), LinExp.kr(p4, 0, 1, 1500, 11000));
@@ -577,7 +577,7 @@ aAutoWah = LeakDC.ar(RLPF.ar(dry, Lag.kr(awCut, 0.02), awRes) * 1.4);
         bMulticlip = LPF.ar(bMulticlip * LinLin.kr(p3, 0, 1, 0.3, 1.0), LinExp.kr(p4, 0, 1, 1300, 12000));
 
         wetL = Select.ar(eff, [dry[0], bFilter[0], bEq[0], bMod[0], bSpace[0], bTexture[0], bDelay[0], bResonator[0], bFoldFilter[0], bFormant[0], bTremolo[0], bCrusher[0], bFreqShift[0], bGranular[0], bPlate[0], bEarly[0], bHaas[0], bTapeSat[0], bTransient[0], bMulticlip[0], bPitch[0], bReverse[0], bSlapback[0], bConv[0], bSpectral[0], bAutoWah[0]]);
-        wetR = Select.ar(eff, [dry[1], bFilter[1], bEq[1], bMod[1], bSpace[1], bTexture[1], bDelay[1], bResonator[1], bFoldFilter[1], bFormant[1], bTremolo[1], bCrusher[1], bFreqShift[1], bGranular[1], bPlate[1], bEarly[1], bHaas[1], bTapeSat[1], bTransient[1], bMulticlip[1], bPitch[1], bReverse[1], bSlapback[1], bConv[1], bSpectral[1], bAutoWah[1]]);
+        wetR = Select.ar(eff, [dry[1], aFilter[1], aEq[1], aMod[1], aSpace[1], aTexture[1], aDelay[1], aResonator[1], aFoldFilter[1], aFormant[1], aTremolo[1], aCrusher[1], aFreqShift[1], aGranular[1], aPlate[1], aEarly[1], aHaas[1], aTapeSat[1], aTransient[1], aMulticlip[1], aPitch[1], aReverse[1], aSlapback[1], aConv[1], aSpectral[1], aAutoWah[1]]);
 
         XFade2.ar(dry, [wetL, wetR], (amt * 2) - 1)
       }.value;
