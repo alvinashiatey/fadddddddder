@@ -23,8 +23,8 @@ Engine_Fadddddddder : CroneEngine {
       aRate, aDepth, aPh2, aPh6, aPh10, aPhaser, aFlanger, aC1, aC2, aC3, aC4, aC5, aTap3, aTap4, aTap5, aChorus,
       bRate, bDepth, bPh2, bPh6, bPh10, bPhaser, bFlanger, bC1, bC2, bC3, bC4, bC5, bTap3, bTap4, bTap5, bChorus,
       quarter, syncBlend, aDelayFreeTime, aDelaySyncTime, bDelayFreeTime, bDelaySyncTime,
-      aComb, aComp, aLimit, aLofi, aFreq, aRing, aMicro, aGrain,
-      bComb, bComp, bLimit, bLofi, bFreq, bRing, bMicro, bGrain;
+      aComb, aComp, aLimit, aLofi, aFreq, aRing,
+      bComb, bComp, bLimit, bLofi, bFreq, bRing;
 
       dry = [In.ar(inL), In.ar(inR)] * Lag.kr(inputAmp, 0.05);
       quarter = 60 / Lag.kr(bpm.clip(20, 300), 0.1);
@@ -83,20 +83,9 @@ Engine_Fadddddddder : CroneEngine {
       aLofi = Latch.ar(dry, Impulse.ar(LinExp.kr(aP1, 0, 1, 900, 44100)));
       aFreq = LinExp.kr(aP1, 0, 1, 18, 2600);
       aRing = dry * SinOsc.ar(aFreq + SinOsc.kr(LinLin.kr(aP4, 0, 1, 0.1, 8), 0, aFreq * 0.15));
-      aMicro = {
-        var time, rate, depth, tapA, tapB, color;
-        time = LinExp.kr(aP1, 0, 1, 0.22, 0.012) * LinLin.kr(aAmt, 0, 1, 1.0, 0.55);
-        rate = LinLin.kr(aP4, 0, 1, 0.2, 12);
-        depth = time * LinLin.kr(aAmt, 0, 1, 0.04, 0.5);
-        tapA = DelayC.ar(dry, 0.25, Clip.kr(time + SinOsc.kr(rate, 0, depth), 0.005, 0.24));
-        tapB = DelayC.ar(dry, 0.25, Clip.kr((time * 0.62) + 0.004, 0.005, 0.24));
-        color = LinExp.kr(aP2, 0, 1, 11000, 1700);
-        LPF.ar((tapA + tapB) * 0.65, color).softclip;
-      }.value;
-      aGrain = GrainIn.ar(2, Dust.kr(LinExp.kr(aP1, 0, 1, 3, 45)), LinLin.kr(aP2, 0, 1, 0.03, 0.22), dry, SinOsc.kr(LinLin.kr(aP4, 0, 1, 0.03, 1.5)), -1, 24);
       aTexture = [
-        SelectX.ar(aP3 * 6, [aComb[0], aComp[0], aLimit[0], aLofi[0], aRing[0], aMicro[0], aGrain[0]]),
-        SelectX.ar(aP3 * 6, [aComb[1], aComp[1], aLimit[1], aLofi[1], aRing[1], aMicro[1], aGrain[1]])
+        SelectX.ar(aP3 * 4, [aComb[0], aComp[0], aLimit[0], aLofi[0], aRing[0]]),
+        SelectX.ar(aP3 * 4, [aComb[1], aComp[1], aLimit[1], aLofi[1], aRing[1]])
       ];
       aDelayFreeTime = LinExp.kr(aP1, 0, 1, 0.05, 0.9);
       aDelaySyncTime = Select.kr((aP1 * 7.999).floor.clip(0, 7), [quarter * 0.25, quarter * 0.5, quarter * 0.75, quarter * (2 / 3), quarter, quarter * 1.5, quarter * 2, quarter * 4]);
@@ -158,20 +147,9 @@ Engine_Fadddddddder : CroneEngine {
       bLofi = Latch.ar(dry, Impulse.ar(LinExp.kr(bP1, 0, 1, 900, 44100)));
       bFreq = LinExp.kr(bP1, 0, 1, 18, 2600);
       bRing = dry * SinOsc.ar(bFreq + SinOsc.kr(LinLin.kr(bP4, 0, 1, 0.1, 8), 0, bFreq * 0.15));
-      bMicro = {
-        var time, rate, depth, tapA, tapB, color;
-        time = LinExp.kr(bP1, 0, 1, 0.22, 0.012) * LinLin.kr(bAmt, 0, 1, 1.0, 0.55);
-        rate = LinLin.kr(bP4, 0, 1, 0.2, 12);
-        depth = time * LinLin.kr(bAmt, 0, 1, 0.04, 0.5);
-        tapA = DelayC.ar(dry, 0.25, Clip.kr(time + SinOsc.kr(rate, 0, depth), 0.005, 0.24));
-        tapB = DelayC.ar(dry, 0.25, Clip.kr((time * 0.62) + 0.004, 0.005, 0.24));
-        color = LinExp.kr(bP2, 0, 1, 11000, 1700);
-        LPF.ar((tapA + tapB) * 0.65, color).softclip;
-      }.value;
-      bGrain = GrainIn.ar(2, Dust.kr(LinExp.kr(bP1, 0, 1, 3, 45)), LinLin.kr(bP2, 0, 1, 0.03, 0.22), dry, SinOsc.kr(LinLin.kr(bP4, 0, 1, 0.03, 1.5)), -1, 24);
       bTexture = [
-        SelectX.ar(bP3 * 6, [bComb[0], bComp[0], bLimit[0], bLofi[0], bRing[0], bMicro[0], bGrain[0]]),
-        SelectX.ar(bP3 * 6, [bComb[1], bComp[1], bLimit[1], bLofi[1], bRing[1], bMicro[1], bGrain[1]])
+        SelectX.ar(bP3 * 4, [bComb[0], bComp[0], bLimit[0], bLofi[0], bRing[0]]),
+        SelectX.ar(bP3 * 4, [bComb[1], bComp[1], bLimit[1], bLofi[1], bRing[1]])
       ];
       bDelayFreeTime = LinExp.kr(bP1, 0, 1, 0.05, 0.9);
       bDelaySyncTime = Select.kr((bP1 * 7.999).floor.clip(0, 7), [quarter * 0.25, quarter * 0.5, quarter * 0.75, quarter * (2 / 3), quarter, quarter * 1.5, quarter * 2, quarter * 4]);
