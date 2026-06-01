@@ -10,9 +10,9 @@ local page_labels = { perform = "perform", scene_a = "scene A", scene_b = "scene
 
 local effect_definitions = {
     { id = "thru",           engine = "thru",    label = "thru",           params = { "tone", "gain" },                      param_count = 2, defaults = { amount = 0.0, param1 = 0.75, param2 = 0.5,  param3 = 0.5,  param4 = 0.5 } },
-    { id = "low_pass",       engine = "filter",  label = "low pass",       params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 0.62, param1 = 0.48, param2 = 0.35, param3 = 0.0,  param4 = 0.0 } },
-    { id = "band_pass",      engine = "filter",  label = "band pass",      params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 0.7,  param1 = 0.45, param2 = 0.58, param3 = 0.5,  param4 = 0.0 } },
-    { id = "high_pass",      engine = "filter",  label = "high pass",      params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 0.62, param1 = 0.32, param2 = 0.28, param3 = 1.0,  param4 = 0.0 } },
+    { id = "low_pass",       engine = "filter",  label = "low pass",       params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 1.0,  param1 = 0.22, param2 = 0.48, param3 = 0.0,  param4 = 1.0 } },
+    { id = "band_pass",      engine = "filter",  label = "band pass",      params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 1.0,  param1 = 0.44, param2 = 0.82, param3 = 0.5,  param4 = 1.0 } },
+    { id = "high_pass",      engine = "filter",  label = "high pass",      params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 1.0,  param1 = 0.28, param2 = 0.42, param3 = 1.0,  param4 = 1.0 } },
     { id = "muffled_bloom",  engine = "filter",  label = "muffled bloom",  params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 0.82, param1 = 0.24, param2 = 0.42, param3 = 0.0,  param4 = 1.0 } },
     { id = "radio_tunnel",   engine = "filter",  label = "radio tunnel",   params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 0.84, param1 = 0.44, param2 = 0.74, param3 = 0.5,  param4 = 1.0 } },
     { id = "airlift",        engine = "filter",  label = "airlift",        params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 0.72, param1 = 0.62, param2 = 0.3,  param3 = 1.0,  param4 = 1.0 } },
@@ -53,6 +53,11 @@ local effect_param_counts = {}
 local default_values = {}
 local effect_index_map = {}
 local effect_engine_map = {}
+local reset_on_select_effects = {
+    low_pass = true,
+    band_pass = true,
+    high_pass = true,
+}
 local legacy_effect_map = {
     thru = "thru",
     filter = "washed_hall",
@@ -283,6 +288,9 @@ local function adjust_scene(side, d)
     if state.cursor == 1 then
         local idx = clamp(effect_index_map[scene.effect] + d, 1, #effect_order)
         scene.effect = effect_order[idx]
+        if reset_on_select_effects[scene.effect] then
+            scene.values[scene.effect] = clone_values(default_values[scene.effect])
+        end
         state.cursor = clamp(state.cursor, 1, cursor_max_for_scene(scene))
     elseif state.cursor == 2 then
         values.amount = clamp(values.amount + d * 0.02, 0, 1)
