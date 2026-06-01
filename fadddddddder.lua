@@ -453,16 +453,16 @@ local function ensure_bank()
 		for i = 1, NUM_SCENES do
 			-- shared may be nil or garbage from any format; clone_slot →
 			-- sanitize_slot handles all cases.
-			local src = type(shared[i]) == "table" and shared or nil
-			state.bank.A = clone_slot(src, i)
-			state.bank.B = clone_slot(src, i)
+			local src = type(shared[i]) == "table" and shared[i] or nil
+			state.bank.A[i] = clone_slot(src, i)
+			state.bank.B[i] = clone_slot(src, i)
 		end
 	end
 
 	-- Final pass: sanitize every slot in both lanes.
 	for i = 1, NUM_SCENES do
-		state.bank.A = sanitize_slot(state.bank.A[i], i)
-		state.bank.B = sanitize_slot(state.bank.B[i], i)
+		state.bank.A[i] = sanitize_slot(state.bank.A[i], i)
+		state.bank.B[i] = sanitize_slot(state.bank.B[i], i)
 	end
 
 	state.slots.A = clamp(tonumber(state.slots.A) or 1, 1, NUM_SCENES)
@@ -506,10 +506,28 @@ end
 -- ---------------------------------------------------------------------------
 
 local function scene_for_side(side)
-	return state.bank[side][state.slots[side]]
+	if type(state.bank) ~= "table" or type(state.bank[side]) ~= "table" then
+		ensure_bank()
+	end
+	local slot_index = clamp(tonumber(state.slots[side]) or 1, 1, NUM_SCENES)
+	local scene = state.bank[side][slot_index]
+	if type(scene) ~= "table" then
+		scene = sanitize_slot(scene, slot_index)
+		state.bank[side][slot_index] = scene
+	end
+	return scene
 end
 
 local function values_for_scene(scene)
+	if type(scene) ~= "table" then
+		scene = new_scene_slot(1)
+	end
+	if type(scene.values) ~= "table" then
+		scene.values = default_effect_values()
+	end
+	if type(scene.values[scene.effect]) ~= "table" then
+		scene.values[scene.effect] = clone_values(default_values[scene.effect] or default_values.thru)
+	end
 	return scene.values[scene.effect]
 end
 
