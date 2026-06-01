@@ -19,6 +19,9 @@
 //  14 = plate      (brighter, tighter synthetic plate)
 //  15 = early      (early reflections cluster, no long tail)
 //  16 = haas       (short inter-channel delay pseudo stereo)
+//  17 = tapeSat    (soft-knee tape-ish saturation)
+//  18 = transient  (attack/sustain contour shaper)
+//  19 = multiclip  (multiband soft clipper)
 //
 // param1–param4 are always normalised 0–1; each effect branch maps them
 // to musically useful ranges internally.
@@ -60,7 +63,7 @@ Engine_Fadddddddder : CroneEngine {
       sceneA = {
         var amt, p1, p2, p3, p4, eff;
         var cutoff, rq, bpRq, lp12, lp24, bp12, bp24, hp12, hp24, mode, aFilter;
-        var aEq, aMod, aSpace, aTexture, aDelay, aResonator, aFoldFilter, aFormant, aTremolo, aCrusher, aFreqShift, aGranular, aPlate, aEarly, aHaas;
+        var aEq, aMod, aSpace, aTexture, aDelay, aResonator, aFoldFilter, aFormant, aTremolo, aCrusher, aFreqShift, aGranular, aPlate, aEarly, aHaas, aTapeSat, aTransient, aMulticlip;
         var excite, decay, tune, tone, combA, combB, base, folded, foldAmt;
         var formA, formB, formC, spread, focus;
         var tremRate, tremDepth, tremShape, tremBias, tremWave;
@@ -68,6 +71,8 @@ Engine_Fadddddddder : CroneEngine {
         var shiftFreq, shiftSpread;
         var grainDensity, grainSize, grainScatter, grainPitch, grainPan;
         var pre, room, damp, earlyA, earlyB, earlyC, earlyD, haasTime, haasTilt, plateIn;
+        var satDrive, satBias, fastEnv, slowEnv, attackCtrl, sustainCtrl, transientGain;
+        var low, mid, high, lowDrive, midDrive, highDrive, tilt;
         var wetL, wetR;
 
         amt = Lag.kr(sceneAAmount.clip(0, 1), 0.08);
@@ -78,7 +83,7 @@ Engine_Fadddddddder : CroneEngine {
         // Do NOT lag the effect index — interpolating between integer slots
         // causes SelectX to blend between unrelated algorithms and produces
         // unpredictable artefacts.  Round to the nearest integer instead.
-        eff = sceneAEffect.clip(0, 16).round(1);
+        eff = sceneAEffect.clip(0, 19).round(1);
 
         // filter: cutoff, resonance, mode (lp/bp/hp), slope (12/24dB)
         cutoff = LinExp.kr(p1, 0, 1, 45, 12000);
@@ -223,8 +228,34 @@ Engine_Fadddddddder : CroneEngine {
         ];
         aHaas = Balance2.ar(LPF.ar(aHaas[0], LinExp.kr(p4, 0, 1, 1500, 12000)), LPF.ar(aHaas[1], LinExp.kr(p4, 0, 1, 1500, 12000)), LinLin.kr(p2, 0, 1, -0.8, 0.8), 1);
 
-        wetL = Select.ar(eff, [dry[0], aFilter[0], aEq[0], aMod[0], aSpace[0], aTexture[0], aDelay[0], aResonator[0], aFoldFilter[0], aFormant[0], aTremolo[0], aCrusher[0], aFreqShift[0], aGranular[0], aPlate[0], aEarly[0], aHaas[0]]);
-        wetR = Select.ar(eff, [dry[1], aFilter[1], aEq[1], aMod[1], aSpace[1], aTexture[1], aDelay[1], aResonator[1], aFoldFilter[1], aFormant[1], aTremolo[1], aCrusher[1], aFreqShift[1], aGranular[1], aPlate[1], aEarly[1], aHaas[1]]);
+        // tape saturation: soft knee with bias and HF rolloff
+        satDrive = LinExp.kr(p1, 0, 1, 1.2, 10);
+        satBias  = LinLin.kr(p2, 0, 1, -0.18, 0.18);
+        aTapeSat = dry + satBias;
+        aTapeSat = ((aTapeSat * satDrive) / (1 + ((aTapeSat * satDrive).abs))) * 1.2;
+        aTapeSat = HPF.ar(LPF.ar(aTapeSat, LinExp.kr(p4, 0, 1, 1400, 10000)), 30) * LinLin.kr(p3, 0, 1, 0.35, 1.0);
+
+        // transient shaper: attack suppression / sustain boost from envelope contrast
+        fastEnv = Amplitude.kr(Mix.ar(dry.abs), 0.001, 0.018);
+        slowEnv = Amplitude.kr(Mix.ar(dry.abs), 0.02, 0.22);
+        attackCtrl = (fastEnv - slowEnv).max(0) * LinLin.kr(p1, 0, 1, 0, 2.5);
+        sustainCtrl = slowEnv * LinLin.kr(p2, 0, 1, 0, 1.8);
+        transientGain = ((1 - attackCtrl) + sustainCtrl).clip(0.15, 3.0);
+        aTransient = LPF.ar((dry * transientGain) * LinLin.kr(p3, 0, 1, 0.35, 1.0), LinExp.kr(p4, 0, 1, 1200, 12000));
+
+        // multiband soft clipper: split and clip each band separately
+        low = LPF.ar(dry, 220);
+        high = HPF.ar(dry, 2200);
+        mid = dry - low - high;
+        tilt = LinLin.kr(p2, 0, 1, -0.8, 0.8);
+        lowDrive = LinExp.kr((p1 + tilt * 0.25).clip(0, 1), 0, 1, 1.0, 8.0);
+        midDrive = LinExp.kr(p1, 0, 1, 1.0, 10.0);
+        highDrive = LinExp.kr((p1 - tilt * 0.25).clip(0, 1), 0, 1, 1.0, 7.0);
+        aMulticlip = ((low * lowDrive).softclip * 0.9) + ((mid * midDrive).softclip) + ((high * highDrive).softclip * 0.85);
+        aMulticlip = LPF.ar(aMulticlip * LinLin.kr(p3, 0, 1, 0.3, 1.0), LinExp.kr(p4, 0, 1, 1300, 12000));
+
+        wetL = Select.ar(eff, [dry[0], aFilter[0], aEq[0], aMod[0], aSpace[0], aTexture[0], aDelay[0], aResonator[0], aFoldFilter[0], aFormant[0], aTremolo[0], aCrusher[0], aFreqShift[0], aGranular[0], aPlate[0], aEarly[0], aHaas[0], aTapeSat[0], aTransient[0], aMulticlip[0]]);
+        wetR = Select.ar(eff, [dry[1], aFilter[1], aEq[1], aMod[1], aSpace[1], aTexture[1], aDelay[1], aResonator[1], aFoldFilter[1], aFormant[1], aTremolo[1], aCrusher[1], aFreqShift[1], aGranular[1], aPlate[1], aEarly[1], aHaas[1], aTapeSat[1], aTransient[1], aMulticlip[1]]);
 
         // Wet/dry mix: amt 0 = dry, amt 1 = fully wet
         XFade2.ar(dry, [wetL, wetR], (amt * 2) - 1)
@@ -234,7 +265,7 @@ Engine_Fadddddddder : CroneEngine {
       sceneB = {
         var amt, p1, p2, p3, p4, eff;
         var cutoff, rq, bpRq, lp12, lp24, bp12, bp24, hp12, hp24, mode, bFilter;
-        var bEq, bMod, bSpace, bTexture, bDelay, bResonator, bFoldFilter, bFormant, bTremolo, bCrusher, bFreqShift, bGranular, bPlate, bEarly, bHaas;
+        var bEq, bMod, bSpace, bTexture, bDelay, bResonator, bFoldFilter, bFormant, bTremolo, bCrusher, bFreqShift, bGranular, bPlate, bEarly, bHaas, bTapeSat, bTransient, bMulticlip;
         var excite, decay, tune, tone, combA, combB, base, folded, foldAmt;
         var formA, formB, formC, spread, focus;
         var tremRate, tremDepth, tremShape, tremBias, tremWave;
@@ -242,6 +273,8 @@ Engine_Fadddddddder : CroneEngine {
         var shiftFreq, shiftSpread;
         var grainDensity, grainSize, grainScatter, grainPitch, grainPan;
         var pre, room, damp, earlyA, earlyB, earlyC, earlyD, haasTime, haasTilt, plateIn;
+        var satDrive, satBias, fastEnv, slowEnv, attackCtrl, sustainCtrl, transientGain;
+        var low, mid, high, lowDrive, midDrive, highDrive, tilt;
         var wetL, wetR;
 
         amt = Lag.kr(sceneBAmount.clip(0, 1), 0.08);
@@ -249,7 +282,7 @@ Engine_Fadddddddder : CroneEngine {
         p2  = Lag.kr(sceneBParam2.clip(0, 1), 0.08);
         p3  = Lag.kr(sceneBParam3.clip(0, 1), 0.08);
         p4  = Lag.kr(sceneBParam4.clip(0, 1), 0.08);
-        eff = sceneBEffect.clip(0, 16).round(1);
+        eff = sceneBEffect.clip(0, 19).round(1);
 
         cutoff = LinExp.kr(p1, 0, 1, 45, 12000);
         rq     = LinLin.kr(p2, 0, 1, 0.9, 0.06);
@@ -376,8 +409,31 @@ Engine_Fadddddddder : CroneEngine {
         ];
         bHaas = Balance2.ar(LPF.ar(bHaas[0], LinExp.kr(p4, 0, 1, 1500, 12000)), LPF.ar(bHaas[1], LinExp.kr(p4, 0, 1, 1500, 12000)), LinLin.kr(p2, 0, 1, -0.8, 0.8), 1);
 
-        wetL = Select.ar(eff, [dry[0], bFilter[0], bEq[0], bMod[0], bSpace[0], bTexture[0], bDelay[0], bResonator[0], bFoldFilter[0], bFormant[0], bTremolo[0], bCrusher[0], bFreqShift[0], bGranular[0], bPlate[0], bEarly[0], bHaas[0]]);
-        wetR = Select.ar(eff, [dry[1], bFilter[1], bEq[1], bMod[1], bSpace[1], bTexture[1], bDelay[1], bResonator[1], bFoldFilter[1], bFormant[1], bTremolo[1], bCrusher[1], bFreqShift[1], bGranular[1], bPlate[1], bEarly[1], bHaas[1]]);
+        satDrive = LinExp.kr(p1, 0, 1, 1.2, 10);
+        satBias  = LinLin.kr(p2, 0, 1, -0.18, 0.18);
+        bTapeSat = dry + satBias;
+        bTapeSat = ((bTapeSat * satDrive) / (1 + ((bTapeSat * satDrive).abs))) * 1.2;
+        bTapeSat = HPF.ar(LPF.ar(bTapeSat, LinExp.kr(p4, 0, 1, 1400, 10000)), 30) * LinLin.kr(p3, 0, 1, 0.35, 1.0);
+
+        fastEnv = Amplitude.kr(Mix.ar(dry.abs), 0.001, 0.018);
+        slowEnv = Amplitude.kr(Mix.ar(dry.abs), 0.02, 0.22);
+        attackCtrl = (fastEnv - slowEnv).max(0) * LinLin.kr(p1, 0, 1, 0, 2.5);
+        sustainCtrl = slowEnv * LinLin.kr(p2, 0, 1, 0, 1.8);
+        transientGain = ((1 - attackCtrl) + sustainCtrl).clip(0.15, 3.0);
+        bTransient = LPF.ar((dry * transientGain) * LinLin.kr(p3, 0, 1, 0.35, 1.0), LinExp.kr(p4, 0, 1, 1200, 12000));
+
+        low = LPF.ar(dry, 220);
+        high = HPF.ar(dry, 2200);
+        mid = dry - low - high;
+        tilt = LinLin.kr(p2, 0, 1, -0.8, 0.8);
+        lowDrive = LinExp.kr((p1 + tilt * 0.25).clip(0, 1), 0, 1, 1.0, 8.0);
+        midDrive = LinExp.kr(p1, 0, 1, 1.0, 10.0);
+        highDrive = LinExp.kr((p1 - tilt * 0.25).clip(0, 1), 0, 1, 1.0, 7.0);
+        bMulticlip = ((low * lowDrive).softclip * 0.9) + ((mid * midDrive).softclip) + ((high * highDrive).softclip * 0.85);
+        bMulticlip = LPF.ar(bMulticlip * LinLin.kr(p3, 0, 1, 0.3, 1.0), LinExp.kr(p4, 0, 1, 1300, 12000));
+
+        wetL = Select.ar(eff, [dry[0], bFilter[0], bEq[0], bMod[0], bSpace[0], bTexture[0], bDelay[0], bResonator[0], bFoldFilter[0], bFormant[0], bTremolo[0], bCrusher[0], bFreqShift[0], bGranular[0], bPlate[0], bEarly[0], bHaas[0], bTapeSat[0], bTransient[0], bMulticlip[0]]);
+        wetR = Select.ar(eff, [dry[1], bFilter[1], bEq[1], bMod[1], bSpace[1], bTexture[1], bDelay[1], bResonator[1], bFoldFilter[1], bFormant[1], bTremolo[1], bCrusher[1], bFreqShift[1], bGranular[1], bPlate[1], bEarly[1], bHaas[1], bTapeSat[1], bTransient[1], bMulticlip[1]]);
 
         XFade2.ar(dry, [wetL, wetR], (amt * 2) - 1)
       }.value;
