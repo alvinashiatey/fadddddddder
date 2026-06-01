@@ -10,16 +10,43 @@ local page_labels = { perform = "perform", scene_a = "scene A", scene_b = "scene
 
 local effect_definitions = {
     { id = "thru",           engine = "thru",    label = "thru",           params = { "tone", "gain" },                      param_count = 2, defaults = { amount = 0.0, param1 = 0.75, param2 = 0.5,  param3 = 0.5,  param4 = 0.5 } },
+    { id = "low_pass",       engine = "filter",  label = "low pass",       params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 0.62, param1 = 0.48, param2 = 0.35, param3 = 0.0,  param4 = 0.0 } },
+    { id = "band_pass",      engine = "filter",  label = "band pass",      params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 0.7,  param1 = 0.45, param2 = 0.58, param3 = 0.5,  param4 = 0.0 } },
+    { id = "high_pass",      engine = "filter",  label = "high pass",      params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 0.62, param1 = 0.32, param2 = 0.28, param3 = 1.0,  param4 = 0.0 } },
+    { id = "muffled_bloom",  engine = "filter",  label = "muffled bloom",  params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 0.82, param1 = 0.24, param2 = 0.42, param3 = 0.0,  param4 = 1.0 } },
+    { id = "radio_tunnel",   engine = "filter",  label = "radio tunnel",   params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 0.84, param1 = 0.44, param2 = 0.74, param3 = 0.5,  param4 = 1.0 } },
+    { id = "airlift",        engine = "filter",  label = "airlift",        params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 0.72, param1 = 0.62, param2 = 0.3,  param3 = 1.0,  param4 = 1.0 } },
+    { id = "peak_sweep",     engine = "filter",  label = "peak sweep",     params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 0.76, param1 = 0.58, param2 = 0.52, param3 = 0.5,  param4 = 0.35 } },
+    { id = "dark_shelf",     engine = "filter",  label = "dark shelf",     params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 0.7,  param1 = 0.18, param2 = 0.22, param3 = 0.0,  param4 = 0.0 } },
+    { id = "thin_ice",       engine = "filter",  label = "thin ice",       params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 0.78, param1 = 0.74, param2 = 0.25, param3 = 1.0,  param4 = 1.0 } },
+    { id = "sub_cut",        engine = "filter",  label = "sub cut",        params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 0.64, param1 = 0.14, param2 = 0.18, param3 = 1.0,  param4 = 0.0 } },
+    { id = "vowel_sweep",    engine = "filter",  label = "vowel sweep",    params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 0.88, param1 = 0.5,  param2 = 0.82, param3 = 0.5,  param4 = 0.55 } },
+    { id = "needle_focus",   engine = "filter",  label = "needle focus",   params = { "cutoff", "res", "mode", "slope" },   param_count = 4, defaults = { amount = 0.82, param1 = 0.68, param2 = 0.7,  param3 = 0.5,  param4 = 1.0 } },
+    { id = "phaser",         engine = "mod",     label = "phaser",         params = { "rate", "depth", "type", "stages" },   param_count = 4, defaults = { amount = 0.55, param1 = 0.22, param2 = 0.42, param3 = 0.0,  param4 = 0.58 } },
+    { id = "flanger",        engine = "mod",     label = "flanger",        params = { "rate", "depth", "type", "stages" },   param_count = 4, defaults = { amount = 0.58, param1 = 0.28, param2 = 0.6,  param3 = 0.5,  param4 = 0.45 } },
+    { id = "hollow_phase",   engine = "mod",     label = "hollow phase",   params = { "rate", "depth", "type", "stages" },   param_count = 4, defaults = { amount = 0.66, param1 = 0.16, param2 = 0.58, param3 = 0.0,  param4 = 1.0 } },
+    { id = "jet_wash",       engine = "mod",     label = "jet wash",       params = { "rate", "depth", "type", "stages" },   param_count = 4, defaults = { amount = 0.72, param1 = 0.24, param2 = 0.82, param3 = 0.5,  param4 = 0.52 } },
+    { id = "stereo_bloom",   engine = "mod",     label = "stereo bloom",   params = { "rate", "depth", "type", "stages" },   param_count = 4, defaults = { amount = 0.52, param1 = 0.18, param2 = 0.36, param3 = 1.0,  param4 = 0.86 } },
     { id = "air_widen",      engine = "space",   label = "air widen",      params = { "size", "damp", "type", "width" },  param_count = 4, defaults = { amount = 0.36, param1 = 0.12, param2 = 0.18, param3 = 0.0,  param4 = 0.95 } },
     { id = "washed_hall",    engine = "space",   label = "washed hall",    params = { "size", "damp", "type", "width" },  param_count = 4, defaults = { amount = 0.58, param1 = 0.72, param2 = 0.38, param3 = 1.0,  param4 = 0.75 } },
     { id = "spring_tunnel",  engine = "space",   label = "spring tunnel",  params = { "size", "damp", "type", "width" },  param_count = 4, defaults = { amount = 0.55, param1 = 0.5,  param2 = 0.35, param3 = 0.66, param4 = 0.35 } },
     { id = "burn_echo",      engine = "delay",   label = "burn echo",      params = { "time", "feedback", "freeze", "tone" }, param_count = 4, defaults = { amount = 0.62, param1 = 0.42, param2 = 0.62, param3 = 0.0,  param4 = 0.3 } },
-    { id = "broken_tape",    engine = "texture", label = "broken tape",    params = { "color", "damage", "type", "motion" }, param_count = 4, defaults = { amount = 0.56, param1 = 0.28, param2 = 0.55, param3 = 0.66, param4 = 0.3 } },
-    { id = "metal_room",     engine = "texture", label = "metal room",     params = { "color", "damage", "type", "motion" }, param_count = 4, defaults = { amount = 0.52, param1 = 0.52, param2 = 0.48, param3 = 1.0,  param4 = 0.4 } },
+    { id = "compressor",     engine = "texture", label = "compressor",     params = { "color", "damage", "type", "motion" }, param_count = 4, defaults = { amount = 0.46, param1 = 0.38, param2 = 0.36, param3 = 0.17, param4 = 0.2 } },
+    { id = "limiter",        engine = "texture", label = "limiter",        params = { "color", "damage", "type", "motion" }, param_count = 4, defaults = { amount = 0.58, param1 = 0.52, param2 = 0.18, param3 = 0.33, param4 = 0.0 } },
+    { id = "glue_pump",      engine = "texture", label = "glue pump",      params = { "color", "damage", "type", "motion" }, param_count = 4, defaults = { amount = 0.62, param1 = 0.34, param2 = 0.55, param3 = 0.17, param4 = 0.38 } },
+    { id = "brick_squeeze",  engine = "texture", label = "brick squeeze",  params = { "color", "damage", "type", "motion" }, param_count = 4, defaults = { amount = 0.78, param1 = 0.58, param2 = 0.16, param3 = 0.33, param4 = 0.0 } },
+    { id = "crushed_bloom",  engine = "texture", label = "crushed bloom",  params = { "color", "damage", "type", "motion" }, param_count = 4, defaults = { amount = 0.7,  param1 = 0.4,  param2 = 0.6,  param3 = 0.5,  param4 = 0.18 } },
+    { id = "metal_gate",     engine = "texture", label = "metal gate",     params = { "color", "damage", "type", "motion" }, param_count = 4, defaults = { amount = 0.66, param1 = 0.72, param2 = 0.46, param3 = 0.67, param4 = 0.52 } },
+    { id = "micro_looper",   engine = "texture", label = "micro looper",   params = { "color", "damage", "type", "motion" }, param_count = 4, defaults = { amount = 0.68, param1 = 0.34, param2 = 0.46, param3 = 0.83, param4 = 0.42 } },
+    { id = "grain_cloud",    engine = "texture", label = "grain cloud",    params = { "color", "damage", "type", "motion" }, param_count = 4, defaults = { amount = 0.62, param1 = 0.42, param2 = 0.38, param3 = 1.0,  param4 = 0.5 } },
+    { id = "grain_shimmer",  engine = "texture", label = "grain shimmer",  params = { "color", "damage", "type", "motion" }, param_count = 4, defaults = { amount = 0.72, param1 = 0.62, param2 = 0.28, param3 = 1.0,  param4 = 0.72 } },
+    { id = "stutter_fog",    engine = "texture", label = "stutter fog",    params = { "color", "damage", "type", "motion" }, param_count = 4, defaults = { amount = 0.74, param1 = 0.22, param2 = 0.62, param3 = 0.83, param4 = 0.7 } },
+    { id = "broken_tape",    engine = "texture", label = "broken tape",    params = { "color", "damage", "type", "motion" }, param_count = 4, defaults = { amount = 0.56, param1 = 0.28, param2 = 0.55, param3 = 0.5,  param4 = 0.3 } },
+    { id = "metal_room",     engine = "texture", label = "metal room",     params = { "color", "damage", "type", "motion" }, param_count = 4, defaults = { amount = 0.52, param1 = 0.52, param2 = 0.48, param3 = 0.67, param4 = 0.4 } },
     { id = "comb_drift",     engine = "mod",     label = "comb drift",     params = { "rate", "depth", "type", "stages" },  param_count = 4, defaults = { amount = 0.48, param1 = 0.24, param2 = 0.35, param3 = 1.0,  param4 = 0.72 } },
     { id = "freeze_haze",    engine = "delay",   label = "freeze haze",    params = { "time", "feedback", "freeze", "tone" }, param_count = 4, defaults = { amount = 0.58, param1 = 0.22, param2 = 0.78, param3 = 1.0,  param4 = 0.36 } },
     { id = "dub_bloom",      engine = "delay",   label = "dub bloom",      params = { "time", "feedback", "freeze", "tone" }, param_count = 4, defaults = { amount = 0.6,  param1 = 0.48, param2 = 0.68, param3 = 0.25, param4 = 0.42 } },
-    { id = "glass_bite",     engine = "texture", label = "glass bite",     params = { "color", "damage", "type", "motion" }, param_count = 4, defaults = { amount = 0.5,  param1 = 0.82, param2 = 0.34, param3 = 1.0,  param4 = 0.18 } },
+    { id = "glass_bite",     engine = "texture", label = "glass bite",     params = { "color", "damage", "type", "motion" }, param_count = 4, defaults = { amount = 0.5,  param1 = 0.82, param2 = 0.34, param3 = 0.67, param4 = 0.18 } },
     { id = "pressure_drive", engine = "eq",      label = "pressure drive", params = { "freq", "gain", "q", "style" },      param_count = 4, defaults = { amount = 0.54, param1 = 0.38, param2 = 0.7,  param3 = 0.55, param4 = 0.0 } },
 }
 
@@ -222,6 +249,12 @@ local function apply_bundle()
     engine.set_xfade(state.xfade)
 end
 
+local function apply_global_engine_params()
+    if not engine_ready then return end
+    if engine.set_bpm ~= nil then engine.set_bpm(params:get("delay_bpm")) end
+    if engine.set_delay_sync ~= nil then engine.set_delay_sync(params:get("delay_sync") == 2 and 1 or 0) end
+end
+
 -- ---------------------------------------------------------------------------
 -- Navigation / Editing
 -- ---------------------------------------------------------------------------
@@ -358,6 +391,16 @@ function init()
     audio.level_dac(1.0)
     audio.level_monitor(1.0)
 
+    params:add_separator("fadddddddder_delay", "fadddddddder delay")
+    params:add_control("delay_bpm", "delay bpm", controlspec.new(40, 240, "lin", 1, 120, "bpm"))
+    params:set_action("delay_bpm", function()
+        apply_global_engine_params()
+    end)
+    params:add_option("delay_sync", "delay sync", { "free", "sync" }, 2)
+    params:set_action("delay_sync", function()
+        apply_global_engine_params()
+    end)
+
     load_bank()
 
     clock.run(function()
@@ -366,6 +409,7 @@ function init()
         engine.set_num_input_channels(2)
         engine.set_input_amp(1.0)
         engine.set_output_amp(1.0)
+        apply_global_engine_params()
         apply_bundle()
     end)
 
