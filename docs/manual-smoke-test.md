@@ -1,42 +1,63 @@
 # Manual smoke test
 
-Run this checklist on device after structural refactors.
+Use this on device after structural refactors.
 
-## Boot
+## Test run metadata
 
-- start `fadddddddder`
-- confirm script loads without Lua errors
-- confirm audio passes through with default settings
+| Field | Value |
+|---|---|
+| Date |  |
+| Tester |  |
+| Norns version |  |
+| Script commit |  |
+| Audio source used |  |
+| Existing `scene_bank.data` present? | yes / no |
+| Legacy flat bank used for migration check? | yes / no |
 
-## Scene selection
+## Status key
 
-- on `perform`, turn `E2` and confirm side `A` slot changes
-- hold `K1` and turn `E2` and confirm side `B` slot changes
-- move `E3` and confirm the crossfader moves between `A` and `B`
-- tap `K1` on `perform` and confirm the xfade snaps to center
+- `PASS` — behavior matched expectations
+- `FAIL` — behavior was incorrect or broken
+- `N/A` — not applicable for this run
+- `FOLLOW-UP` — partly worked, but needs another check
 
-## Scene editing
+## Execution log
 
-- go to `scene A`
-- change effect, amount, and at least two params
-- confirm returning to `perform` shows the updated effect label/value
-- go to `scene B` and repeat
-- switch between filter-family presets and confirm shared params carry over smoothly
+| Area | Step | Status | Notes |
+|---|---|---|---|
+| Boot | Start `fadddddddder` from the norns menu |  |  |
+| Boot | Confirm the script loads without Lua errors |  |  |
+| Boot | Confirm live audio passes through with default settings |  |  |
+| Scene switching | On `perform`, turn `E2` and confirm side `A` slot changes |  |  |
+| Scene switching | Hold `K1` and turn `E2` and confirm side `B` slot changes |  |  |
+| Scene switching | Move `E3` and confirm the crossfader moves between `A` and `B` |  |  |
+| Scene switching | Tap `K1` on `perform` and confirm the xfade snaps to center |  |  |
+| Scene editing | Go to `scene A`, change effect, amount, and at least two params |  |  |
+| Scene editing | Return to `perform` and confirm the updated effect label/value is shown |  |  |
+| Scene editing | Go to `scene B` and repeat the edit check |  |  |
+| Scene editing | Switch between filter-family presets and confirm shared params carry over smoothly |  |  |
+| Persistence | Edit slots on both sides and move the crossfader away from default |  |  |
+| Persistence | Exit the script or restart norns |  |  |
+| Persistence | Relaunch and confirm slots, effects, params, and xfade are restored |  |  |
+| Migration | Launch with an older saved bank and confirm it loads |  |  |
+| Migration | Confirm both `A` and `B` lanes are populated after migration |  |  |
+| Engine params | Confirm changing scene params updates sound immediately |  |  |
+| Engine params | Confirm `delay bpm` still affects the engine |  |  |
+| Engine params | Confirm `delay sync` still affects the engine |  |  |
+| Engine params | Confirm there are no clicks caused by broken scene sync or nil params |  |  |
 
-## Persistence
+## Failure capture
 
-- edit slots on both sides
-- move the crossfader away from default
-- exit the script or restart norns
-- relaunch and confirm slots, effects, params, and xfade are restored
+Record each failing or follow-up item in more detail.
 
-## Migration safety
+| Step | Observed behavior | Expected behavior | Severity | Follow-up owner |
+|---|---|---|---|---|
+|  |  |  |  |  |
 
-- if you have an older saved bank, launch once and confirm it loads
-- confirm both `A` and `B` lanes are populated after migration
+## End-of-run summary
 
-## Engine behavior
-
-- confirm changing scene params updates sound immediately
-- confirm delay bpm and delay sync params still affect the engine
-- confirm there are no clicks caused by broken scene sync or nil params
+- Overall result: PASS / FAIL / FOLLOW-UP
+- Safe to continue refactoring? yes / no
+- Safe to cut a release candidate? yes / no
+- Highest-risk area from this run:
+- Recommended next action:

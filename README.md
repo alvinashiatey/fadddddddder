@@ -100,18 +100,22 @@ fadddddddder/
   lib/
     Engine_Fadddddddder.sc
     fadddddddder/
+      app.lua
       effects.lua
       engine_adapter.lua
       pages.lua
+      params.lua
       scene_model.lua
       store.lua
 ```
 
 ## Architecture
 
-The script is now organized as a small top-level entrypoint plus focused modules:
+The script is now organized as a tiny top-level entrypoint plus focused modules:
 
-- `fadddddddder.lua`: lifecycle, params, engine boot, module wiring
+- `fadddddddder.lua`: lifecycle handoff only
+- `lib/fadddddddder/app.lua`: application wiring, boot flow, and module orchestration
+- `lib/fadddddddder/params.lua`: param registration and callbacks
 - `lib/fadddddddder/effects.lua`: effect catalog and lookup tables
 - `lib/fadddddddder/scene_model.lua`: slot defaults, cloning, sanitization, cursor/value helpers
 - `lib/fadddddddder/store.lua`: bank migration, load/save, pending-save debounce

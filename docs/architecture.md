@@ -2,9 +2,11 @@
 
 ## Overview
 
-`fadddddddder` is organized as a small main script plus focused modules.
+`fadddddddder` is organized as a tiny entry script plus focused modules.
 
-- `fadddddddder.lua` — lifecycle orchestration, params, engine boot, top-level wiring
+- `fadddddddder.lua` — lifecycle handoff only
+- `lib/fadddddddder/app.lua` — application wiring, boot flow, and top-level orchestration
+- `lib/fadddddddder/params.lua` — norns param registration and callbacks
 - `lib/fadddddddder/effects.lua` — effect catalog and derived lookup tables
 - `lib/fadddddddder/scene_model.lua` — scene slot creation, cloning, sanitization, cursor/value helpers
 - `lib/fadddddddder/store.lua` — bank migration, load/save, debounced persistence flag
@@ -14,11 +16,12 @@
 
 ## Runtime data flow
 
-1. `init()` wires params, loads the stored bank, and boots the engine.
-2. `pages.lua` mutates `state` in response to encoders/keys.
-3. Scene edits call `request_save()` and `apply_bundle()`.
-4. `engine_adapter.lua` pushes scene A/B values and xfade into the engine.
-5. `store.lua` flushes pending saves during the redraw metro.
+1. `fadddddddder.lua` forwards lifecycle hooks into `app.lua`.
+2. `app.lua` registers params, loads the stored bank, and boots the engine.
+3. `pages.lua` mutates scene state in response to encoders/keys.
+4. Scene edits call `request_save()` and `apply_bundle()`.
+5. `engine_adapter.lua` pushes scene A/B values and xfade into the engine.
+6. `store.lua` flushes pending saves during the redraw metro.
 
 ## Persisted state
 
@@ -49,4 +52,5 @@ The goal of this layout is to keep future changes local:
 - add or tune effects in `effects.lua`
 - change slot/bank rules in `scene_model.lua` or `store.lua`
 - change engine parameter wiring in `engine_adapter.lua`
+- change boot wiring in `app.lua` or `params.lua`
 - change controls or screen behavior in `pages.lua`
