@@ -139,9 +139,21 @@ Scene settings are stored automatically in `data/fadddddddder/scene_bank.data`:
 
 The bank saves whenever you edit slots, scene values, or the crossfader, and again on cleanup.
 
-## Likely Next Steps
+## Feature Backlog After Maintainability Gates
 
-- tune preset gain staging on actual norns hardware
-- add scene copy/capture actions
-- add waveform or input/output metering
-- add params for input mode and gain staging
+Before starting new feature work:
+
+1. complete a logged hardware pass using `docs/manual-smoke-test.md`
+2. confirm persistence and migration checks still pass
+3. note which modules the feature will touch before editing code
+
+Priority order:
+
+1. **scene copy/capture actions**
+   - expected modules: `lib/fadddddddder/pages.lua`, `lib/fadddddddder/scene_model.lua`, `lib/fadddddddder/store.lua`, `docs/manual-smoke-test.md`
+2. **gain staging and input params**
+   - expected modules: `lib/fadddddddder/params.lua`, `lib/fadddddddder/engine_adapter.lua`, `lib/Engine_Fadddddddder.sc`, `docs/manual-smoke-test.md`
+3. **metering and visual additions**
+   - expected modules: `lib/fadddddddder/pages.lua`, `fadddddddder.lua` only if lifecycle wiring changes, plus any new helper module introduced for UI/state flow
+
+Keep feature work queued against the modular layout above instead of moving logic back into the entry script.

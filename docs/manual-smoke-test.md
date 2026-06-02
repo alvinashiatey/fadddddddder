@@ -81,10 +81,31 @@ Record each failing or follow-up item in more detail.
 |---|---|---|---|---|
 |  |  |  |  |  |
 
+## Feature gate before new work
+
+Use this checklist after the smoke pass and before starting a new feature.
+
+| Gate | Result | Notes |
+|---|---|---|
+| Boot / scene-switch / persistence checks all passed or have accepted follow-ups |  |  |
+| No new migration or corrupt-data regressions were introduced |  |  |
+| The feature has a written module touch list before coding starts |  |  |
+| The feature priority matches the backlog order in `README.md` |  |  |
+
+### Current backlog order
+
+1. **scene copy/capture actions**
+   - expected modules: `lib/fadddddddder/pages.lua`, `lib/fadddddddder/scene_model.lua`, `lib/fadddddddder/store.lua`
+2. **gain staging and input params**
+   - expected modules: `lib/fadddddddder/params.lua`, `lib/fadddddddder/engine_adapter.lua`, `lib/Engine_Fadddddddder.sc`
+3. **metering and visual additions**
+   - expected modules: `lib/fadddddddder/pages.lua` and any new UI helper module added for drawing/state flow
+
 ## End-of-run summary
 
 - Overall result: PASS / FAIL / FOLLOW-UP
 - Safe to continue refactoring? yes / no
+- Safe to start the next backlog feature? yes / no
 - Safe to cut a release candidate? yes / no
 - Highest-risk area from this run:
 - Recommended next action:
