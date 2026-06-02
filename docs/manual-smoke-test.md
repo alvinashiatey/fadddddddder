@@ -41,10 +41,37 @@ Use this on device after structural refactors.
 | Persistence | Relaunch and confirm slots, effects, params, and xfade are restored |  |  |
 | Migration | Launch with an older saved bank and confirm it loads |  |  |
 | Migration | Confirm both `A` and `B` lanes are populated after migration |  |  |
+| Persistence regression | Save edits, relaunch, save different edits, and relaunch again |  |  |
+| Persistence regression | Confirm repeated save/load cycles do not reset slots, params, or xfade unexpectedly |  |  |
+| Corrupt data recovery | Replace `scene_bank.data` with malformed data and launch the script |  |  |
+| Corrupt data recovery | Confirm the script logs a reset, boots successfully, and writes a fresh default bank |  |  |
 | Engine params | Confirm changing scene params updates sound immediately |  |  |
 | Engine params | Confirm `delay bpm` still affects the engine |  |  |
 | Engine params | Confirm `delay sync` still affects the engine |  |  |
 | Engine params | Confirm there are no clicks caused by broken scene sync or nil params |  |  |
+
+## Persistence and migration setup notes
+
+Use these setup cases when validating the persistence contract.
+
+### Legacy flat-bank migration case
+
+- prepare an older save that does not contain `bank.A` / `bank.B`
+- launch once and confirm both lanes are populated from the shared legacy slots
+- confirm the next save rewrites the file as the current dual-lane format
+
+### Corrupt-data recovery case
+
+- back up `data/fadddddddder/scene_bank.data`
+- replace it with malformed data, or a table missing key nested structures
+- launch the script
+- confirm boot succeeds and a fresh default bank is written back to disk
+
+### Repeated save/load case
+
+- make one set of edits and relaunch
+- make a second distinct set of edits and relaunch again
+- confirm the second pass persists cleanly and the file does not regress to earlier values
 
 ## Failure capture
 

@@ -37,13 +37,13 @@ return function(deps)
 		end
 	end
 
-	function EngineAdapter.apply_bundle(state, engine_ready)
+	function EngineAdapter.apply_bundle(persisted, engine_ready)
 		if not engine_ready then
 			return
 		end
 		EngineAdapter.sync_scene("A")
 		EngineAdapter.sync_scene("B")
-		engine.set_xfade(state.xfade)
+		engine.set_xfade(persisted.xfade)
 	end
 
 	function EngineAdapter.apply_global_params(engine_ready)

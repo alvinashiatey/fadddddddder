@@ -82,15 +82,15 @@ return function(Effects)
 		return out
 	end
 
-	function SceneModel.scene_for_side(state, side, num_scenes, ensure_bank)
-		if type(state.bank) ~= "table" or type(state.bank[side]) ~= "table" then
+	function SceneModel.scene_for_side(persisted, side, num_scenes, ensure_bank)
+		if type(persisted.bank) ~= "table" or type(persisted.bank[side]) ~= "table" then
 			ensure_bank()
 		end
-		local slot_index = clamp(tonumber(state.slots[side]) or 1, 1, num_scenes)
-		local scene = state.bank[side][slot_index]
+		local slot_index = clamp(tonumber(persisted.slots[side]) or 1, 1, num_scenes)
+		local scene = persisted.bank[side][slot_index]
 		if type(scene) ~= "table" then
 			scene = SceneModel.sanitize_slot(scene, slot_index)
-			state.bank[side][slot_index] = scene
+			persisted.bank[side][slot_index] = scene
 		end
 		return scene
 	end

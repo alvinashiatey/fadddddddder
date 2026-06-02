@@ -125,6 +125,7 @@ The script is now organized as a tiny top-level entrypoint plus focused modules:
 For maintainer-focused details, see:
 
 - `docs/architecture.md`
+- `docs/effect-engine-map.md`
 - `docs/manual-smoke-test.md`
 
 ## Persistence

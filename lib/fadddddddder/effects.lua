@@ -518,6 +518,8 @@ local Effects = {
 	},
 
 	-- Engine-side effect index used by the SC SynthDef SelectX.
+	-- Keep this aligned with docs/effect-engine-map.md and the index order
+	-- documented in lib/Engine_Fadddddddder.sc.
 	engine_effect_index = {
 		thru = 0,
 		filter = 1,
